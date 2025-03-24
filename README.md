@@ -1,3 +1,5 @@
+<img width="1469" alt="Capture d’écran 2025-03-24 à 17 11 37" src="https://github.com/user-attachments/assets/aa7ae4ae-29fa-4fba-a8dd-9551bb5f0180" />
+
 # Disclaimer  
 This app was developed for fun. It probably contains a lot of bugs, and I do not wish to fix them. You have the source code here—if you want, you can do stuff with it.  
 
