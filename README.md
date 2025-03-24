@@ -39,6 +39,10 @@ Steam\steamapps\common\Fields of Mistria\animation\generated\par_output.json
 ```  
 Add it to the root folder.  
 
+### Finally
+Your file should look like this:
+<img width="290" alt="Capture d’écran 2025-03-24 à 17 13 58" src="https://github.com/user-attachments/assets/f76cf389-c2ef-4141-9166-9c2a7408ebbf" />
+
 ## Launching the app  
 You will need to use the command line. If you are on Windows, you can try the `launch.bat` file, and if it works, you're good to go.  
 On macOS, you have the similar `launch.sh`—use a terminal and open it with the command:  
