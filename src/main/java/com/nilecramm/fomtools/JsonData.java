@@ -1,4 +1,4 @@
-package org.example.fomtools;
+package com.nilecramm.fomtools;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Map;

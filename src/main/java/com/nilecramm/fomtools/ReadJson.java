@@ -1,10 +1,8 @@
-package org.example.fomtools;
+package com.nilecramm.fomtools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Map;
 
 public class ReadJson {
     /*

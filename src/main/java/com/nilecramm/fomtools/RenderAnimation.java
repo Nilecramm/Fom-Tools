@@ -1,10 +1,11 @@
-package org.example.fomtools;
+package com.nilecramm.fomtools;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.util.Duration;
 
 import java.lang.reflect.Field;
@@ -325,7 +326,21 @@ public class RenderAnimation {
                         String imagePath = spriteLoader.getSpritePath(partName, frameIndex);
 
                         if (imagePath != null) {
-                            Image image = new Image(imagePath);
+                            // Charger l'image directement à la bonne taille selon le scale actuel
+                            int originalWidth, originalHeight;
+                            if (partName.equals("base_head") || partName.equals("eyes") || partName.equals("face") || partName.equals("facial_hair")) {
+                                originalWidth = originalHeight = 16;
+                            } else if (partName.equals("hair_back") || partName.equals("hair_mid")) {
+                                originalWidth = originalHeight = 40;
+                            } else {
+                                originalWidth = originalHeight = 32;
+                            }
+
+                            int scaledWidth = (int) (originalWidth * scale);
+                            int scaledHeight = (int) (originalHeight * scale);
+
+                            // Charger l'image avec la taille voulue et sans lissage
+                            Image image = new Image(imagePath, scaledWidth, scaledHeight, false, false);
                             view.setImage(image);
 
                             // Apply offset
@@ -390,21 +405,31 @@ public class RenderAnimation {
         for (String partName : bodyParts.keySet()) {
             ImageView view = bodyParts.get(partName);
 
-            if (partName.equals("base_head") || partName.equals("eyes")|| partName.equals("face") || partName.equals("facial_hair")) {
-                // Parties de tête sont généralement 16x16
-                view.setFitWidth(16 * scale);
-                view.setFitHeight(16 * scale);
-            } else if (partName.equals("hair_back") || partName.equals("hair_mid")){
-                view.setFitWidth(40 * scale);
-                view.setFitHeight(40 * scale);
+            // Déterminer la taille originale selon le type de partie
+            int originalWidth, originalHeight;
+            if (partName.equals("base_head") || partName.equals("eyes") || partName.equals("face") || partName.equals("facial_hair")) {
+                originalWidth = originalHeight = 16;
+            } else if (partName.equals("hair_back") || partName.equals("hair_mid")) {
+                originalWidth = originalHeight = 40;
             } else {
-                // Toutes les autres parties sont 32x32
-                view.setFitWidth(32 * scale);
-                view.setFitHeight(32 * scale);
+                originalWidth = originalHeight = 32;
             }
+
+            // Calculer la nouvelle taille
+            int scaledWidth = (int) (originalWidth * scale);
+            int scaledHeight = (int) (originalHeight * scale);
+
+            // Effacer l'image actuelle pour forcer le rechargement
+            view.setImage(null);
+
+            // Réinitialiser les propriétés de l'ImageView AVANT de charger la nouvelle image
+            view.setFitWidth(Region.USE_COMPUTED_SIZE);
+            view.setFitHeight(Region.USE_COMPUTED_SIZE);
+            view.setPreserveRatio(false);
+            view.setSmooth(false);
         }
 
-        // When scale changes, we need to restart animations to reapply proper offsets
+        // Redémarrer l'animation qui rechargera toutes les images à la bonne taille
         if (currentAction != null && !currentAction.isEmpty()) {
             setAnimation(currentAction, currentDirection);
         }

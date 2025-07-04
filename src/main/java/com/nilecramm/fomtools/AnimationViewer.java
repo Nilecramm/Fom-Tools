@@ -1,4 +1,4 @@
-package org.example.fomtools;
+package com.nilecramm.fomtools;
 
 import javafx.application.Application;
 import javafx.collections.FXCollections;
@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AnimationViewer extends Application {
 
+    private ConfigManager configManager;
     private String customEditorPath = null;
     private RenderAnimation animation;
     private double scale = 2.0;
@@ -43,215 +44,338 @@ public class AnimationViewer extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
+            // Initialiser le gestionnaire de configuration
+            configManager = new ConfigManager();
+
+            // Charger les paramètres sauvegardés
+            charactersBasePath = configManager.getCharactersPath();
+            customEditorPath = configManager.getCustomEditorPath();
+
             // Create menu bar
             MenuBar menuBar = createMenuBar(primaryStage);
 
-            // Load animations
+            // Le reste du code reste identique...
             ReadJson readJson = new ReadJson();
-            JsonData jsonData = readJson.readJson("par_output.json");
+            JsonData jsonData = null;
 
-            // Get available actions and directions
-            ArrayList<String> actions = new ArrayList<>(jsonData.base_arm_left.keySet());
-            ArrayList<String> directions = new ArrayList<>();
-            directions.add("north");
-            directions.add("south");
-            directions.add("east");
-
-            // Animation container
-            Pane animationContainer = new Pane();
-            animation = new RenderAnimation(jsonData, animationContainer);
-
-            // Set a frame tracker on the animation
-            animation.setFrameUpdateListener((partName, frameIndex) -> {
-                currentFrameMap.put(partName, frameIndex);
-                updatePartsPreviews();
-            });
-
-            // Set initial animation
-            String initialAction = actions.get(0);
-            String initialDirection = "south";
-            animation.setScale(scale);
-            animation.setSpeed(speed);
-
-            // Create animation view with border
-            StackPane animationView = new StackPane(animationContainer);
-            animationView.setStyle("-fx-border-color: lightgray; -fx-border-width: 1px;");
-            animationView.setPrefSize(300, 300);
-            animationView.setMinSize(300, 300);
-
-            // Sprite parts preview container
-            spritePartsContainer = new FlowPane();
-            spritePartsContainer.setPadding(new Insets(10));
-            spritePartsContainer.setHgap(10);
-            spritePartsContainer.setVgap(10);
-            spritePartsContainer.setPrefWrapLength(580);
-
-            // Wrap in a scroll pane
-            ScrollPane spritePartsScroll = new ScrollPane(spritePartsContainer);
-            spritePartsScroll.setFitToWidth(true);
-            spritePartsScroll.setPrefHeight(200);
-
-            // Get the list of available characters
-            List<String> characters = SpriteLoader.listCharacterFolders(charactersBasePath);
-            ComboBox<String> characterComboBox = new ComboBox<>(FXCollections.observableArrayList(characters));
-            characterComboBox.setMaxWidth(Double.MAX_VALUE);
-
-            // Label to display detected parts
-            Label detectedPartsLabel = new Label("Detected parts: No character loaded");
-
-            if (!characters.isEmpty()) {
-                characterComboBox.setValue(characters.get(0));
-                String characterPath = charactersBasePath + characterComboBox.getValue();
-                boolean loaded = animation.loadCharacter(characterPath);
-                if (loaded) {
-                    animation.setAnimation(initialAction, initialDirection);
-                    updateDetectedPartsLabel(detectedPartsLabel);
-                }
+            try {
+                jsonData = readJson.readJson("par_output.json");
+            } catch (Exception e) {
+                showMissingFileWindow(primaryStage, menuBar);
+                return;
             }
 
-            // Create controls for animation
-            ComboBox<String> actionComboBox = new ComboBox<>(FXCollections.observableArrayList(actions));
-            actionComboBox.setValue(initialAction);
-            actionComboBox.setMaxWidth(Double.MAX_VALUE);
+            if (jsonData == null || jsonData.base_arm_left == null) {
+                showMissingFileWindow(primaryStage, menuBar);
+                return;
+            }
 
-            ComboBox<String> directionComboBox = new ComboBox<>(FXCollections.observableArrayList(directions));
-            directionComboBox.setValue(initialDirection);
-            directionComboBox.setMaxWidth(Double.MAX_VALUE);
-
-            // Add change listeners
-            characterComboBox.setOnAction(e -> {
-                String characterPath = charactersBasePath + characterComboBox.getValue();
-                boolean loaded = animation.loadCharacter(characterPath);
-                if (loaded) {
-                    animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
-                    updateDetectedPartsLabel(detectedPartsLabel);
-                } else {
-                    showAlert("Incomplete Character",
-                            "Unable to load the necessary base sprites for this character.",
-                            Alert.AlertType.WARNING);
-                }
-            });
-
-            actionComboBox.setOnAction(e ->
-                    animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue()));
-
-            directionComboBox.setOnAction(e ->
-                    animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue()));
-
-            // Scale controls
-            Slider scaleSlider = new Slider(0.5, 5.0, scale);
-            scaleSlider.setShowTickMarks(true);
-            scaleSlider.setShowTickLabels(true);
-            scaleSlider.setMajorTickUnit(0.5);
-            scaleSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                scale = newVal.doubleValue();
-                animation.setScale(scale);
-            });
-
-            // Speed controls
-            Slider speedSlider = new Slider(0.25, 3.0, speed);
-            speedSlider.setShowTickMarks(true);
-            speedSlider.setShowTickLabels(true);
-            speedSlider.setMajorTickUnit(0.25);
-            speedSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-                speed = newVal.doubleValue();
-                animation.setSpeed(speed);
-            });
-
-            Button pauseButton = new Button("Pause");
-            pauseButton.setMaxWidth(Double.MAX_VALUE);
-            pauseButton.setOnAction(e -> {
-                animation.togglePause();
-                pauseButton.setText(animation.isPaused() ? "Resume" : "Pause");
-            });
-
-            // Add a refresh button
-            Button refreshButton = new Button("Refresh");
-            refreshButton.setMaxWidth(Double.MAX_VALUE);
-            refreshButton.setOnAction(e -> {
-                // Save the current pause state
-                boolean wasPaused = animation.isPaused();
-
-                // Force pause if not already paused
-                if (!wasPaused) {
-                    animation.togglePause();
-                }
-
-                // Reload character and animation
-                String characterPath = charactersBasePath + characterComboBox.getValue();
-                boolean loaded = animation.loadCharacter(characterPath);
-                if (loaded) {
-                    animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
-                    updateDetectedPartsLabel(detectedPartsLabel);
-
-                    // Force render the current frame if paused
-                    if (wasPaused || animation.isPaused()) {
-                        animation.renderCurrentFrame();
-                        // Update the sprite previews as well
-                        updatePartsPreviews();
-                    }
-
-                    // Make sure it's paused again if it was paused before
-                    if (wasPaused && !animation.isPaused()) {
-                        animation.togglePause();
-                        pauseButton.setText("Resume");
-                    }
-
-                    // If we forced pause earlier, unpause it
-                    if (!wasPaused && animation.isPaused()) {
-                        animation.togglePause();
-                        pauseButton.setText("Pause");
-                    }
-                }
-            });
-
-            // Scrolling area for part information
-            ScrollPane detectedPartsScroll = new ScrollPane(detectedPartsLabel);
-            detectedPartsScroll.setFitToWidth(true);
-            detectedPartsScroll.setPrefHeight(100);
-
-            // Create control panels
-            VBox animationControls = new VBox(10,
-                    new Label("Character:"), characterComboBox,
-                    new Label("Action:"), actionComboBox,
-                    new Label("Direction:"), directionComboBox,
-                    new Label("Scale:"), scaleSlider,
-                    new Label("Speed:"), speedSlider,
-                    refreshButton,
-                    pauseButton,
-                    new Label("Information:"),
-                    detectedPartsScroll
-            );
-            animationControls.setPadding(new Insets(10));
-            animationControls.setPrefWidth(250);
-
-            // Layout
-            BorderPane root = new BorderPane();
-            root.setTop(menuBar);
-            root.setCenter(new VBox(10, animationView,
-                    new Label("Individual Sprites:"),
-                    spritePartsScroll));
-            root.setRight(animationControls);
-
-            Scene scene = new Scene(root);
-            primaryStage.setTitle("Animation Viewer");
-            primaryStage.setScene(scene);
-
-// Make the window fill most of the screen
-            Screen screen = Screen.getPrimary();
-            Rectangle2D bounds = screen.getVisualBounds();
-            primaryStage.setWidth(bounds.getWidth());
-            primaryStage.setHeight(bounds.getHeight());
-
-// Center the window
-            primaryStage.centerOnScreen();
-
-// This is the missing line that makes the window visible
-            primaryStage.show();
+            initializeNormalView(primaryStage, menuBar, jsonData);
 
         } catch (Exception e) {
             e.printStackTrace();
+            showMissingFileWindow(primaryStage, createMenuBar(primaryStage));
         }
+    }
+
+    // Modifiez la méthode selectCharactersFolder
+    private void selectCharactersFolder(Stage primaryStage) {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Select Characters Folder");
+
+        // Set initial directory if possible
+        File initialDirectory = new File(charactersBasePath);
+        if (initialDirectory.exists()) {
+            directoryChooser.setInitialDirectory(initialDirectory);
+        }
+
+        File selectedDirectory = directoryChooser.showDialog(primaryStage);
+        if (selectedDirectory != null) {
+            charactersBasePath = selectedDirectory.getAbsolutePath() + File.separator;
+
+            // Sauvegarder dans la configuration
+            configManager.setCharactersPath(charactersBasePath);
+
+            refreshCharacterList();
+
+            showAlert("File Selection",
+                    "File defined: " + charactersBasePath,
+                    Alert.AlertType.INFORMATION);
+        }
+    }
+
+    // Modifiez la méthode selectCustomEditor
+    private void selectCustomEditor() {
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Select Image Editor Application");
+
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            fileChooser.getExtensionFilters().add(
+                    new javafx.stage.FileChooser.ExtensionFilter("Applications", "*.app")
+            );
+        } else if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            fileChooser.getExtensionFilters().add(
+                    new javafx.stage.FileChooser.ExtensionFilter("Executables", "*.exe")
+            );
+        }
+
+        java.io.File selectedFile = fileChooser.showOpenDialog(null);
+        if (selectedFile != null) {
+            customEditorPath = selectedFile.getAbsolutePath();
+
+            // Sauvegarder dans la configuration
+            configManager.setCustomEditorPath(customEditorPath);
+
+            showAlert("Éditeur défini",
+                    "Éditeur personnalisé défini sur : " + customEditorPath,
+                    Alert.AlertType.INFORMATION);
+        }
+    }
+
+    /**
+     * Shows a window indicating that par_output.json is missing
+     */
+    private void showMissingFileWindow(Stage primaryStage, MenuBar menuBar) {
+        // Create error content
+        VBox errorContent = new VBox(20);
+        errorContent.setAlignment(Pos.CENTER);
+        errorContent.setPadding(new Insets(50));
+
+        Label errorLabel = new Label("par_output.json file missing");
+        errorLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: red;");
+
+        Label instructionLabel = new Label("Please place the par_output.json file in the project root directory.");
+        instructionLabel.setStyle("-fx-font-size: 14px;");
+        instructionLabel.setWrapText(true);
+        instructionLabel.setMaxWidth(400);
+
+        Button retryButton = new Button("Retry");
+        retryButton.setStyle("-fx-font-size: 14px; -fx-padding: 10px 20px;");
+        retryButton.setOnAction(e -> {
+            // Try to restart the application
+            try {
+                start(primaryStage);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+
+        errorContent.getChildren().addAll(errorLabel, instructionLabel, retryButton);
+
+        // Layout
+        BorderPane root = new BorderPane();
+        root.setTop(menuBar);
+        root.setCenter(errorContent);
+
+        Scene scene = new Scene(root, 600, 400);
+        primaryStage.setTitle("Animation Viewer - Error");
+        primaryStage.setScene(scene);
+        primaryStage.centerOnScreen();
+        primaryStage.show();
+    }
+
+    /**
+     * Initializes the normal view when par_output.json is found
+     */
+    private void initializeNormalView(Stage primaryStage, MenuBar menuBar, JsonData jsonData) {
+        // Get available actions and directions
+        ArrayList<String> actions = new ArrayList<>(jsonData.base_arm_left.keySet());
+        ArrayList<String> directions = new ArrayList<>();
+        directions.add("north");
+        directions.add("south");
+        directions.add("east");
+
+        // Animation container
+        Pane animationContainer = new Pane();
+        animation = new RenderAnimation(jsonData, animationContainer);
+
+        // Set a frame tracker on the animation
+        animation.setFrameUpdateListener((partName, frameIndex) -> {
+            currentFrameMap.put(partName, frameIndex);
+            updatePartsPreviews();
+        });
+
+        // Set initial animation
+        String initialAction = actions.get(0);
+        String initialDirection = "south";
+        animation.setScale(scale);
+        animation.setSpeed(speed);
+
+        // Create animation view with border
+        StackPane animationView = new StackPane(animationContainer);
+        animationView.setStyle("-fx-border-color: lightgray; -fx-border-width: 1px;");
+        animationView.setPrefSize(300, 300);
+        animationView.setMinSize(300, 300);
+
+        // Sprite parts preview container
+        spritePartsContainer = new FlowPane();
+        spritePartsContainer.setPadding(new Insets(10));
+        spritePartsContainer.setHgap(10);
+        spritePartsContainer.setVgap(10);
+        spritePartsContainer.setPrefWrapLength(580);
+
+        // Wrap in a scroll pane
+        ScrollPane spritePartsScroll = new ScrollPane(spritePartsContainer);
+        spritePartsScroll.setFitToWidth(true);
+        spritePartsScroll.setPrefHeight(200);
+
+        // Get the list of available characters
+        List<String> characters = SpriteLoader.listCharacterFolders(charactersBasePath);
+        ComboBox<String> characterComboBox = new ComboBox<>(FXCollections.observableArrayList(characters));
+        characterComboBox.setMaxWidth(Double.MAX_VALUE);
+
+        // Label to display detected parts
+        Label detectedPartsLabel = new Label("Detected parts: No character loaded");
+
+        if (!characters.isEmpty()) {
+            characterComboBox.setValue(characters.get(0));
+            String characterPath = charactersBasePath + characterComboBox.getValue();
+            boolean loaded = animation.loadCharacter(characterPath);
+            if (loaded) {
+                animation.setAnimation(initialAction, initialDirection);
+                updateDetectedPartsLabel(detectedPartsLabel);
+            }
+        }
+
+        // Create controls for animation
+        ComboBox<String> actionComboBox = new ComboBox<>(FXCollections.observableArrayList(actions));
+        actionComboBox.setValue(initialAction);
+        actionComboBox.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<String> directionComboBox = new ComboBox<>(FXCollections.observableArrayList(directions));
+        directionComboBox.setValue(initialDirection);
+        directionComboBox.setMaxWidth(Double.MAX_VALUE);
+
+        // Add change listeners
+        characterComboBox.setOnAction(e -> {
+            String characterPath = charactersBasePath + characterComboBox.getValue();
+            boolean loaded = animation.loadCharacter(characterPath);
+            if (loaded) {
+                animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
+                updateDetectedPartsLabel(detectedPartsLabel);
+            } else {
+                showAlert("Incomplete Character",
+                        "Unable to load the necessary base sprites for this character.",
+                        Alert.AlertType.WARNING);
+            }
+        });
+
+        actionComboBox.setOnAction(e ->
+                animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue()));
+
+        directionComboBox.setOnAction(e ->
+                animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue()));
+
+        // Scale controls
+        Slider scaleSlider = new Slider(0.5, 5.0, scale);
+        scaleSlider.setShowTickMarks(true);
+        scaleSlider.setShowTickLabels(true);
+        scaleSlider.setMajorTickUnit(0.5);
+        scaleSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            scale = newVal.doubleValue();
+            animation.setScale(scale);
+        });
+
+        // Speed controls
+        Slider speedSlider = new Slider(0.25, 3.0, speed);
+        speedSlider.setShowTickMarks(true);
+        speedSlider.setShowTickLabels(true);
+        speedSlider.setMajorTickUnit(0.25);
+        speedSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            speed = newVal.doubleValue();
+            animation.setSpeed(speed);
+        });
+
+        Button pauseButton = new Button("Pause");
+        pauseButton.setMaxWidth(Double.MAX_VALUE);
+        pauseButton.setOnAction(e -> {
+            animation.togglePause();
+            pauseButton.setText(animation.isPaused() ? "Resume" : "Pause");
+        });
+
+        // Add a refresh button
+        Button refreshButton = new Button("Refresh");
+        refreshButton.setMaxWidth(Double.MAX_VALUE);
+        refreshButton.setOnAction(e -> {
+            // Save the current pause state
+            boolean wasPaused = animation.isPaused();
+
+            // Force pause if not already paused
+            if (!wasPaused) {
+                animation.togglePause();
+            }
+
+            // Reload character and animation
+            String characterPath = charactersBasePath + characterComboBox.getValue();
+            boolean loaded = animation.loadCharacter(characterPath);
+            if (loaded) {
+                animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
+                updateDetectedPartsLabel(detectedPartsLabel);
+
+                // Force render the current frame if paused
+                if (wasPaused || animation.isPaused()) {
+                    animation.renderCurrentFrame();
+                    // Update the sprite previews as well
+                    updatePartsPreviews();
+                }
+
+                // Make sure it's paused again if it was paused before
+                if (wasPaused && !animation.isPaused()) {
+                    animation.togglePause();
+                    pauseButton.setText("Resume");
+                }
+
+                // If we forced pause earlier, unpause it
+                if (!wasPaused && animation.isPaused()) {
+                    animation.togglePause();
+                    pauseButton.setText("Pause");
+                }
+            }
+        });
+
+        // Scrolling area for part information
+        ScrollPane detectedPartsScroll = new ScrollPane(detectedPartsLabel);
+        detectedPartsScroll.setFitToWidth(true);
+        detectedPartsScroll.setPrefHeight(100);
+
+        // Create control panels
+        VBox animationControls = new VBox(10,
+                new Label("Character:"), characterComboBox,
+                new Label("Action:"), actionComboBox,
+                new Label("Direction:"), directionComboBox,
+                new Label("Scale:"), scaleSlider,
+                new Label("Speed:"), speedSlider,
+                refreshButton,
+                pauseButton,
+                new Label("Information:"),
+                detectedPartsScroll
+        );
+        animationControls.setPadding(new Insets(10));
+        animationControls.setPrefWidth(250);
+
+        // Layout
+        BorderPane root = new BorderPane();
+        root.setTop(menuBar);
+        root.setCenter(new VBox(10, animationView,
+                new Label("Individual Sprites:"),
+                spritePartsScroll));
+        root.setRight(animationControls);
+
+        Scene scene = new Scene(root);
+        primaryStage.setTitle("Animation Viewer");
+        primaryStage.setScene(scene);
+
+        // Make the window fill most of the screen
+        Screen screen = Screen.getPrimary();
+        Rectangle2D bounds = screen.getVisualBounds();
+        primaryStage.setWidth(bounds.getWidth());
+        primaryStage.setHeight(bounds.getHeight());
+
+        // Center the window
+        primaryStage.centerOnScreen();
+
+        // This is the missing line that makes the window visible
+        primaryStage.show();
     }
 
     /**
@@ -278,33 +402,6 @@ public class AnimationViewer extends Application {
         menuBar.getMenus().add(editMenu);
 
         return menuBar;
-    }
-
-    /**
-     * Allows the user to select a new characters folder
-     */
-    private void selectCharactersFolder(Stage primaryStage) {
-        DirectoryChooser directoryChooser = new DirectoryChooser();
-        directoryChooser.setTitle("Select Characters Folder");
-
-        // Set initial directory if possible
-        File initialDirectory = new File(charactersBasePath);
-        if (initialDirectory.exists()) {
-            directoryChooser.setInitialDirectory(initialDirectory);
-        }
-
-        File selectedDirectory = directoryChooser.showDialog(primaryStage);
-        if (selectedDirectory != null) {
-            charactersBasePath = selectedDirectory.getAbsolutePath() + File.separator;
-
-            // Update the character list in the ComboBox
-            refreshCharacterList();
-
-            // Show confirmation
-            showAlert("Folder Set",
-                    "Characters folder set to: " + charactersBasePath,
-                    Alert.AlertType.INFORMATION);
-        }
     }
 
     /**
@@ -420,17 +517,18 @@ public class AnimationViewer extends Application {
                 partBox.setPrefWidth(100);
                 partBox.setPrefHeight(130);
 
-                // Create the sprite image view first
-                ImageView spriteView = new ImageView(new Image(imagePath));
-                spriteView.setFitHeight(80);
-                spriteView.setFitWidth(80);
-                spriteView.setPreserveRatio(true);
+                // Create the sprite image view with proper pixel art scaling
+                Image originalImage = new Image(imagePath, 80, 80, false, false);
+                ImageView spriteView = new ImageView(originalImage);
+                spriteView.setFitWidth(Region.USE_COMPUTED_SIZE);
+                spriteView.setFitHeight(Region.USE_COMPUTED_SIZE);
+                spriteView.setPreserveRatio(false);
                 spriteView.setSmooth(false);
 
                 // Make the sprite clickable to open in external editor
                 final String finalImagePath = imagePath;
                 spriteView.setOnMouseClicked(event -> openSpriteInExternalEditor(finalImagePath));
-                spriteView.setCursor(javafx.scene.Cursor.HAND); // Change cursor to indicate it's clickable
+                spriteView.setCursor(javafx.scene.Cursor.HAND);
 
                 // Create a label for the part name
                 Label nameLabel = new Label(partName);
@@ -558,34 +656,6 @@ public class AnimationViewer extends Application {
             showAlert("Error Opening Editor",
                     "Could not open the sprite in an editor: " + e.getMessage(),
                     Alert.AlertType.ERROR);
-        }
-    }
-
-    /**
-     * Shows a dialog to select a custom editor application
-     */
-    private void selectCustomEditor() {
-        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
-        fileChooser.setTitle("Select Image Editor Application");
-
-        // Set filters based on OS
-        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
-            fileChooser.getExtensionFilters().add(
-                    new javafx.stage.FileChooser.ExtensionFilter("Applications", "*.app")
-            );
-        } else if (System.getProperty("os.name").toLowerCase().contains("win")) {
-            fileChooser.getExtensionFilters().add(
-                    new javafx.stage.FileChooser.ExtensionFilter("Executables", "*.exe")
-            );
-        }
-
-        java.io.File selectedFile = fileChooser.showOpenDialog(null);
-        if (selectedFile != null) {
-            customEditorPath = selectedFile.getAbsolutePath();
-            // Show confirmation
-            showAlert("Editor Set",
-                    "Custom editor set to: " + customEditorPath,
-                    Alert.AlertType.INFORMATION);
         }
     }
 

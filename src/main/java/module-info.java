@@ -5,6 +5,6 @@ module org.example.fomtools {
     requires java.desktop;
 
 
-    opens org.example.fomtools to javafx.fxml;
-    exports org.example.fomtools;
+    opens com.nilecramm.fomtools to javafx.fxml;
+    exports com.nilecramm.fomtools;
 }

@@ -1,4 +1,4 @@
-package org.example.fomtools;
+package com.nilecramm.fomtools;
 
 import java.io.File;
 import java.util.*;
