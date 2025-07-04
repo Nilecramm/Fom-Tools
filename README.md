@@ -1,4 +1,4 @@
-<img width="1469" alt="Capture d’écran 2025-03-24 à 17 11 37" src="https://github.com/user-attachments/assets/aa7ae4ae-29fa-4fba-a8dd-9551bb5f0180" />
+<img width="1465" alt="Capture d’écran 2025-07-05 à 00 11 00" src="https://github.com/user-attachments/assets/899279e8-c1eb-4b09-b861-d314f0c39b9e" />
 
 # Disclaimer  
 This app was developed for fun. It probably contains a lot of bugs, and I do not wish to fix them. You have the source code here—if you want, you can do stuff with it.  
@@ -24,7 +24,7 @@ You can:
 ### 1) JAVA FX  
 You need to download the JavaFX SDK 21 for your computer.  
 Go to this link: [https://gluonhq.com/products/javafx/](https://gluonhq.com/products/javafx/)  
-Select version 21 (currently, 21.0.6), and install the **SDK type** (not the jmod one).  
+Select version 21 (currently, 21.0.7), and install the **SDK type** (not the jmod one).  
 You can then extract it and drag it into the root folder of the app, at the same level as the `.jar` and the launch executables.  
 
 ### 2) JAVA (JDK 21)  
@@ -41,7 +41,8 @@ Add it to the root folder.
 
 ### Finally
 Your file should look like this:
-<img width="290" alt="Capture d’écran 2025-03-24 à 17 13 58" src="https://github.com/user-attachments/assets/f76cf389-c2ef-4141-9166-9c2a7408ebbf" />
+<img width="291" alt="Capture d’écran 2025-07-04 à 23 57 09" src="https://github.com/user-attachments/assets/6bb5b632-559b-4262-bde7-c03d803491b0" />
+
 
 ## Launching the app  
 You will need to use the command line. If you are on Windows, you can try the `launch.bat` file, and if it works, you're good to go.  
