@@ -55,7 +55,7 @@ Sometimes, it doesn't work.
 Add this option in the command line and try again (edit the executable link directly so you won’t need to write it again):  
 `-Dprism.order=sw`. Like this:  
 ```bash
-java -Dprism.order=sw --module-path javafx-sdk-21.0.6/lib --add-modules javafx.controls,javafx.fxml --add-exports javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -jar FomTools-1.0-SNAPSHOT.jar
+java -Dprism.order=sw --module-path javafx-sdk-21.0.7/lib --add-modules javafx.controls,javafx.fxml --add-exports javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -jar FomTools-1.0-SNAPSHOT.jar
 ```  
 
 ### Using the app  
