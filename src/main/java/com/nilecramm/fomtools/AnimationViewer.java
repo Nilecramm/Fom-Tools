@@ -14,9 +14,10 @@ import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.image.*;
 import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -24,6 +25,7 @@ import javafx.stage.Stage;
 import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +42,12 @@ public class AnimationViewer extends Application {
 
     // Base path for character sprites
     private String charactersBasePath = "";
+
+    private final Map<String, Integer> selectedLUTColors = new HashMap<>();
+
+    private LUTGroupManager groupManager = new LUTGroupManager();
+    private ComboBox<String> groupSelectionComboBox;
+
 
     @Override
     public void start(Stage primaryStage) {
@@ -77,8 +85,6 @@ public class AnimationViewer extends Application {
             showMissingFileWindow(primaryStage, createMenuBar(primaryStage));
         }
     }
-
-    // Modifiez la méthode selectCharactersFolder
     private void selectCharactersFolder(Stage primaryStage) {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Select Characters Folder");
@@ -103,8 +109,6 @@ public class AnimationViewer extends Application {
                     Alert.AlertType.INFORMATION);
         }
     }
-
-    // Modifiez la méthode selectCustomEditor
     private void selectCustomEditor() {
         javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
         fileChooser.setTitle("Select Image Editor Application");
@@ -119,7 +123,7 @@ public class AnimationViewer extends Application {
             );
         }
 
-        java.io.File selectedFile = fileChooser.showOpenDialog(null);
+        File selectedFile = fileChooser.showOpenDialog(null);
         if (selectedFile != null) {
             customEditorPath = selectedFile.getAbsolutePath();
 
@@ -131,6 +135,7 @@ public class AnimationViewer extends Application {
                     Alert.AlertType.INFORMATION);
         }
     }
+
 
     /**
      * Shows a window indicating that par_output.json is missing
@@ -338,6 +343,8 @@ public class AnimationViewer extends Application {
         detectedPartsScroll.setFitToWidth(true);
         detectedPartsScroll.setPrefHeight(100);
 
+        VBox groupControls = createGroupControls();
+
         // Create control panels
         VBox animationControls = new VBox(10,
                 new Label("Character:"), characterComboBox,
@@ -347,6 +354,8 @@ public class AnimationViewer extends Application {
                 new Label("Speed:"), speedSlider,
                 refreshButton,
                 pauseButton,
+                new Separator(),
+                groupControls,
                 new Label("Information:"),
                 detectedPartsScroll
         );
@@ -378,6 +387,400 @@ public class AnimationViewer extends Application {
         primaryStage.show();
     }
 
+    private VBox createGroupControls() {
+        VBox groupControls = new VBox(10);
+
+        Label groupLabel = new Label("LUT Groups:");
+        groupLabel.setStyle("-fx-font-weight: bold;");
+
+        // ComboBox pour sélectionner un groupe
+        groupSelectionComboBox = new ComboBox<>();
+        groupSelectionComboBox.setMaxWidth(Double.MAX_VALUE);
+        groupSelectionComboBox.setPromptText("Select a group...");
+        updateGroupSelectionComboBox();
+
+        // Bouton pour charger une LUT pour le groupe sélectionné
+        Button loadGroupLUTButton = new Button("Load Group LUT");
+        loadGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
+        loadGroupLUTButton.setOnAction(e -> loadLUTForSelectedGroup());
+
+        // Variable pour la ComboBox des variantes (on la recrée quand le groupe change)
+        final ComboBox<String>[] groupVariantComboBox = new ComboBox[1];
+
+        // Bouton pour supprimer la LUT du groupe
+        Button removeGroupLUTButton = new Button("Remove Group LUT");
+        removeGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
+        removeGroupLUTButton.setOnAction(e -> removeGroupLUT());
+
+        // Listeners
+        groupSelectionComboBox.setOnAction(e -> {
+            String selectedGroup = groupSelectionComboBox.getValue();
+
+            // Retirer l'ancienne ComboBox si elle existe
+            if (groupVariantComboBox[0] != null) {
+                groupControls.getChildren().remove(groupVariantComboBox[0]);
+            }
+
+            // Créer une nouvelle ComboBox avec les aperçus pour ce groupe
+            if (selectedGroup != null && groupManager.hasGroup(selectedGroup)) {
+                groupVariantComboBox[0] = createVariantComboBoxWithPreviews(selectedGroup);
+                updateGroupVariantComboBox(groupVariantComboBox[0], selectedGroup);
+
+                groupVariantComboBox[0].setOnAction(event -> {
+                    String selectedVariant = groupVariantComboBox[0].getValue();
+                    if (selectedGroup != null && selectedVariant != null) {
+                        applyGroupVariant(selectedGroup, selectedVariant);
+                    }
+                });
+
+                // Insérer la nouvelle ComboBox à la bonne position (après le bouton Load)
+                int insertIndex = groupControls.getChildren().indexOf(loadGroupLUTButton) + 1;
+                groupControls.getChildren().add(insertIndex, groupVariantComboBox[0]);
+            }
+
+            boolean hasGroup = selectedGroup != null && !selectedGroup.isEmpty();
+            loadGroupLUTButton.setDisable(!hasGroup);
+            removeGroupLUTButton.setDisable(!hasGroup || !groupHasLUT(selectedGroup));
+        });
+
+        // Désactiver les boutons initialement
+        loadGroupLUTButton.setDisable(true);
+        removeGroupLUTButton.setDisable(true);
+
+        groupControls.getChildren().addAll(
+                groupLabel,
+                groupSelectionComboBox,
+                loadGroupLUTButton,
+                removeGroupLUTButton
+        );
+
+        return groupControls;
+    }
+
+    private void updateGroupSelectionComboBox() {
+        if (groupSelectionComboBox != null) {
+            String currentSelection = groupSelectionComboBox.getValue();
+            groupSelectionComboBox.setItems(groupManager.getGroupNames());
+
+            // Restaurer la sélection si elle existe encore
+            if (currentSelection != null && groupManager.hasGroup(currentSelection)) {
+                groupSelectionComboBox.setValue(currentSelection);
+            }
+        }
+    }
+
+    private void updateGroupVariantComboBox(ComboBox<String> variantComboBox, String groupName) {
+        variantComboBox.getItems().clear();
+
+        if (groupName == null || !groupManager.hasGroup(groupName)) {
+            variantComboBox.setDisable(true);
+            return;
+        }
+
+        LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
+        if (group.getLutPath() == null) {
+            variantComboBox.setDisable(true);
+            return;
+        }
+
+        // Prendre n'importe quelle partie du groupe pour obtenir les variantes disponibles
+        String samplePart = group.getParts().iterator().next();
+        if (animation.getLUTManager().hasLUT(samplePart)) {
+            List<Integer> availableIndices = animation.getLUTManager().getAvailableVariantIndices(samplePart);
+            List<String> variantOptions = new ArrayList<>();
+
+            for (Integer index : availableIndices) {
+                if (index == 0) {
+                    variantOptions.add("Base");
+                } else {
+                    variantOptions.add("Variant " + index);
+                }
+            }
+
+            variantComboBox.setItems(FXCollections.observableArrayList(variantOptions));
+            variantComboBox.setDisable(false);
+
+            // Sélectionner la variante actuelle du groupe
+            int currentVariant = group.getSelectedVariant();
+            String currentLabel = currentVariant == 0 ? "Base" : "Variant " + currentVariant;
+            if (variantOptions.contains(currentLabel)) {
+                variantComboBox.setValue(currentLabel);
+            }
+        } else {
+            variantComboBox.setDisable(true);
+        }
+    }
+
+    // Méthode pour charger une LUT pour le groupe sélectionné
+    private void loadLUTForSelectedGroup() {
+        String selectedGroup = groupSelectionComboBox.getValue();
+        if (selectedGroup == null) return;
+
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Select LUT file for group " + selectedGroup);
+        fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("PNG Images", "*.png")
+        );
+
+        File selectedFile = fileChooser.showOpenDialog(spritePartsContainer.getScene().getWindow());
+        if (selectedFile != null) {
+            groupManager.setGroupLUT(selectedGroup, selectedFile.getAbsolutePath(), animation.getLUTManager());
+
+            // Rafraîchir l'affichage
+            animation.renderCurrentFrame();
+            updatePartsPreviews();
+
+            // Mettre à jour les contrôles
+            updateGroupSelectionComboBox();
+        }
+    }
+
+    // Méthode pour appliquer une variante à un groupe
+    private void applyGroupVariant(String groupName, String variantLabel) {
+        if (!groupManager.hasGroup(groupName)) return;
+
+        // Convertir le label en index
+        int variantIndex = variantLabel.equals("Base") ? 0 :
+                Integer.parseInt(variantLabel.replace("Variant ", ""));
+
+        groupManager.setGroupVariant(groupName, variantIndex, animation.getLUTManager());
+
+        // Rafraîchir l'affichage
+        animation.renderCurrentFrame();
+        updatePartsPreviews();
+
+    }
+
+    // Méthode pour supprimer la LUT d'un groupe
+    private void removeGroupLUT() {
+        String selectedGroup = groupSelectionComboBox.getValue();
+        if (selectedGroup == null) return;
+
+        LUTGroupManager.LUTGroup group = groupManager.getGroup(selectedGroup);
+        if (group != null) {
+            // Supprimer la LUT de toutes les parties du groupe
+            for (String part : group.getParts()) {
+                animation.getLUTManager().removeLUT(part);
+            }
+
+            // Nettoyer les données du groupe
+            group.setLutPath(null);
+            group.setSelectedVariant(0);
+
+            // Rafraîchir l'affichage
+            animation.renderCurrentFrame();
+            updatePartsPreviews();
+
+            // Mettre à jour les contrôles
+            updateGroupSelectionComboBox();
+        }
+    }
+
+    // Méthode pour vérifier si un groupe a une LUT
+    private boolean groupHasLUT(String groupName) {
+        if (!groupManager.hasGroup(groupName)) return false;
+
+        LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
+        return group.getLutPath() != null;
+    }
+
+    // Méthode pour créer un aperçu visuel des couleurs d'une variante
+    private ImageView createVariantPreview(String partName, int variantIndex) {
+        // Créer une petite image avec les couleurs de la variante
+        int previewWidth = 80;
+        int previewHeight = 16;
+
+        WritableImage previewImage = new WritableImage(previewWidth, previewHeight);
+        PixelWriter writer = previewImage.getPixelWriter();
+
+        // Obtenir la LUT pour cette partie via le groupe
+        try {
+            String groupName = groupManager.getPartGroup(partName);
+            if (groupName != null) {
+                LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
+                if (group != null && group.getLutPath() != null) {
+                    Image lutImage = new Image(new File(group.getLutPath()).toURI().toString());
+                    PixelReader lutReader = lutImage.getPixelReader();
+
+                    int lutHeight = (int) lutImage.getHeight();
+                    int lutWidth = (int) lutImage.getWidth();
+
+                    // Vérifier que l'index de variante est valide
+                    if (variantIndex < lutWidth) {
+                        // Obtenir seulement les couleurs non-transparentes et non-noires
+                        List<Color> validColors = new ArrayList<>();
+
+                        for (int y = 0; y < lutHeight; y++) {
+                            Color lutColor = lutReader.getColor(variantIndex, y);
+
+                            // Ignorer les couleurs transparentes et quasi-noires
+                            if (lutColor.getOpacity() > 0.1 &&
+                                    (lutColor.getRed() > 0.05 || lutColor.getGreen() > 0.05 || lutColor.getBlue() > 0.05)) {
+                                validColors.add(lutColor);
+                            }
+                        }
+
+                        // Si on a des couleurs valides, les afficher
+                        if (!validColors.isEmpty()) {
+                            int colorWidth = previewWidth / validColors.size();
+
+                            for (int i = 0; i < validColors.size(); i++) {
+                                Color color = validColors.get(i);
+                                int startX = i * colorWidth;
+                                int endX = Math.min(startX + colorWidth, previewWidth);
+
+                                for (int x = startX; x < endX; x++) {
+                                    for (int y = 0; y < previewHeight; y++) {
+                                        writer.setColor(x, y, color);
+                                    }
+                                }
+                            }
+                        } else {
+                            // Si pas de couleurs valides, afficher un dégradé gris
+                            fillWithGradient(writer, previewWidth, previewHeight);
+                        }
+                    } else {
+                        // Index invalide, afficher un dégradé gris
+                        fillWithGradient(writer, previewWidth, previewHeight);
+                    }
+                } else {
+                    // Pas de LUT, afficher un dégradé gris
+                    fillWithGradient(writer, previewWidth, previewHeight);
+                }
+            } else {
+                // Partie pas dans un groupe, afficher un dégradé gris
+                fillWithGradient(writer, previewWidth, previewHeight);
+            }
+        } catch (Exception e) {
+            // En cas d'erreur, afficher un dégradé gris
+            fillWithGradient(writer, previewWidth, previewHeight);
+        }
+
+        ImageView previewView = new ImageView(previewImage);
+        previewView.setFitWidth(80);
+        previewView.setFitHeight(16);
+        previewView.setPreserveRatio(false);
+        previewView.setSmooth(false);
+
+        return previewView;
+    }
+
+    // Méthode helper pour remplir avec un dégradé gris
+    private void fillWithGradient(PixelWriter writer, int width, int height) {
+        for (int x = 0; x < width; x++) {
+            double intensity = 0.7 + (0.2 * x / width); // Dégradé de gris
+            Color grayColor = Color.gray(intensity);
+            for (int y = 0; y < height; y++) {
+                writer.setColor(x, y, grayColor);
+            }
+        }
+    }
+
+    // Créer une version custom de ComboBox qui affiche les aperçus
+    private ComboBox<String> createVariantComboBoxWithPreviews(String groupName) {
+        ComboBox<String> variantComboBox = new ComboBox<>();
+        variantComboBox.setMaxWidth(Double.MAX_VALUE);
+        variantComboBox.setPromptText("Select variant...");
+
+        // Créer un cell factory personnalisé pour afficher les aperçus
+        variantComboBox.setCellFactory(param -> new ListCell<String>() {
+            private final HBox content = new HBox(10);
+            private final Label textLabel = new Label();
+            private final ImageView preview = new ImageView();
+
+            {
+                content.setAlignment(Pos.CENTER_LEFT);
+                content.getChildren().addAll(textLabel, preview);
+
+                // Forcer le texte en noir
+                textLabel.setStyle("-fx-text-fill: black;");
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    textLabel.setText(item);
+
+                    // Obtenir l'index de la variante
+                    int variantIndex = item.equals("Base") ? 0 :
+                            Integer.parseInt(item.replace("Variant ", ""));
+
+                    // Obtenir une partie du groupe pour créer l'aperçu
+                    LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
+                    if (group != null && !group.getParts().isEmpty()) {
+                        String samplePart = group.getParts().iterator().next();
+                        ImageView previewImage = createVariantPreview(samplePart, variantIndex);
+                        preview.setImage(previewImage.getImage());
+                        preview.setFitWidth(60);
+                        preview.setFitHeight(12);
+                        preview.setPreserveRatio(false);
+                        preview.setSmooth(false);
+                    }
+
+                    setGraphic(content);
+                    setText(null);
+                    // Forcer le style de la cellule
+                    setStyle("-fx-text-fill: black;");
+                }
+            }
+        });
+
+        // Également personnaliser l'affichage du bouton (élément sélectionné)
+        variantComboBox.setButtonCell(new ListCell<String>() {
+            private final HBox content = new HBox(10);
+            private final Label textLabel = new Label();
+            private final ImageView preview = new ImageView();
+
+            {
+                content.setAlignment(Pos.CENTER_LEFT);
+                content.getChildren().addAll(textLabel, preview);
+
+                // Forcer le texte en noir
+                textLabel.setStyle("-fx-text-fill: black;");
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    textLabel.setText(item);
+
+                    // Obtenir l'index de la variante
+                    int variantIndex = item.equals("Base") ? 0 :
+                            Integer.parseInt(item.replace("Variant ", ""));
+
+                    // Obtenir une partie du groupe pour créer l'aperçu
+                    LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
+                    if (group != null && !group.getParts().isEmpty()) {
+                        String samplePart = group.getParts().iterator().next();
+                        ImageView previewImage = createVariantPreview(samplePart, variantIndex);
+                        preview.setImage(previewImage.getImage());
+                        preview.setFitWidth(40);
+                        preview.setFitHeight(8);
+                        preview.setPreserveRatio(false);
+                        preview.setSmooth(false);
+                    }
+
+                    setGraphic(content);
+                    setText(null);
+                    // Forcer le style de la cellule
+                    setStyle("-fx-text-fill: black;");
+                }
+            }
+        });
+
+        return variantComboBox;
+    }
+
     /**
      * Creates the menu bar with Edit options
      */
@@ -395,13 +798,29 @@ public class AnimationViewer extends Application {
         MenuItem setCharactersFolderMenuItem = new MenuItem("Set Characters Folder");
         setCharactersFolderMenuItem.setOnAction(e -> selectCharactersFolder(primaryStage));
 
+        // Manage LUT Groups option
+        MenuItem manageLUTGroupsMenuItem = new MenuItem("Manage LUT Groups");
+        manageLUTGroupsMenuItem.setOnAction(e -> openGroupManagerWindow());
+
         // Add items to Edit menu
-        editMenu.getItems().addAll(setEditorMenuItem, setCharactersFolderMenuItem);
+        editMenu.getItems().addAll(setEditorMenuItem, setCharactersFolderMenuItem, new SeparatorMenuItem(), manageLUTGroupsMenuItem);
 
         // Add menus to menuBar
         menuBar.getMenus().add(editMenu);
 
         return menuBar;
+    }
+
+    private void openGroupManagerWindow() {
+        List<String> availableParts = animation.getAvailableBodyParts();
+        GroupManagerWindow groupWindow = new GroupManagerWindow(groupManager, availableParts);
+
+        // Définir le callback pour mettre à jour la ComboBox principale ET sauvegarder
+        groupWindow.setOnGroupsChangedCallback(() -> {
+            updateGroupSelectionComboBox();
+        });
+
+        groupWindow.show();
     }
 
     /**
@@ -510,43 +929,84 @@ public class AnimationViewer extends Application {
             String imagePath = animation.getSpriteLoader().getSpritePath(partName, frameIndex);
 
             if (imagePath != null) {
-                // Create a VBox for each sprite part
                 VBox partBox = new VBox(5);
                 partBox.setAlignment(Pos.CENTER);
                 partBox.setStyle("-fx-border-color: lightgray; -fx-border-width: 1px; -fx-padding: 5px;");
-                partBox.setPrefWidth(100);
-                partBox.setPrefHeight(130);
+                partBox.setPrefWidth(120);
+                partBox.setPrefHeight(180); // Réduire la hauteur car moins de contrôles
 
-                // Create the sprite image view with proper pixel art scaling
+                // Charger et appliquer la LUT
                 Image originalImage = new Image(imagePath, 80, 80, false, false);
-                ImageView spriteView = new ImageView(originalImage);
+                Image finalImage = animation.getLUTManager().applyLUT(partName, originalImage);
+
+                ImageView spriteView = new ImageView(finalImage);
                 spriteView.setFitWidth(Region.USE_COMPUTED_SIZE);
                 spriteView.setFitHeight(Region.USE_COMPUTED_SIZE);
                 spriteView.setPreserveRatio(false);
                 spriteView.setSmooth(false);
 
-                // Make the sprite clickable to open in external editor
-                final String finalImagePath = imagePath;
-                spriteView.setOnMouseClicked(event -> openSpriteInExternalEditor(finalImagePath));
-                spriteView.setCursor(javafx.scene.Cursor.HAND);
-
-                // Create a label for the part name
+                // Labels
                 Label nameLabel = new Label(partName);
                 nameLabel.setWrapText(true);
-                nameLabel.setMaxWidth(90);
+                nameLabel.setMaxWidth(110);
                 nameLabel.setAlignment(Pos.CENTER);
 
-                // Create a separate label for the frame number with larger font
                 Label frameLabel = new Label("Frame: " + frameIndex);
                 frameLabel.setStyle("-fx-font-weight: bold;");
                 frameLabel.setAlignment(Pos.CENTER);
 
-                // Add an edit button
-                Button editButton = new Button(customEditorPath != null ? "Edit (Custom)" : "Edit (Default)");
-                editButton.setOnAction(e -> openSpriteInExternalEditor(finalImagePath));
+                // Afficher le groupe si la partie en fait partie
+                String partGroup = groupManager.getPartGroup(partName);
+                if (partGroup != null) {
+                    Label groupLabel = new Label("Group: " + partGroup);
+                    groupLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: blue;");
+                    groupLabel.setAlignment(Pos.CENTER);
+                    partBox.getChildren().add(groupLabel);
+                }
+
+                // Bouton d'édition
+                Button editButton = new Button(customEditorPath != null ? "Edit" : "Edit");
+                editButton.setOnAction(e -> openSpriteInExternalEditor(imagePath));
 
                 partBox.getChildren().addAll(spriteView, nameLabel, frameLabel, editButton);
                 spritePartsContainer.getChildren().add(partBox);
+            }
+        }
+    }
+
+    /**
+     * Met à jour l'image d'un seul sprite dans le preview sans recréer tout
+     */
+    private void updateSinglePartPreview(String partName, int frameIndex, ImageView spriteView) {
+        String imagePath = animation.getSpriteLoader().getSpritePath(partName, frameIndex);
+        if (imagePath != null) {
+            Image originalImage = new Image(imagePath, 80, 80, false, false);
+            Image finalImage = animation.getLUTManager().applyLUT(partName, originalImage);
+            spriteView.setImage(finalImage);
+        }
+    }
+
+    /**
+     * Charge un fichier LUT pour une partie spécifique
+     */
+    private void loadLUTForPart(String partName) {
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Select LUT file for " + partName);
+        fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("PNG Images", "*.png")
+        );
+
+        File selectedFile = fileChooser.showOpenDialog(spritePartsContainer.getScene().getWindow());
+        if (selectedFile != null) {
+            boolean success = animation.getLUTManager().loadLUT(partName, selectedFile.getAbsolutePath());
+            if (success) {
+                // Forcer le rafraîchissement
+                animation.renderCurrentFrame();
+                updatePartsPreviews();
+            } else {
+                showAlert("Erreur LUT",
+                        "Impossible de charger le fichier LUT pour " + partName,
+                        Alert.AlertType.ERROR);
             }
         }
     }

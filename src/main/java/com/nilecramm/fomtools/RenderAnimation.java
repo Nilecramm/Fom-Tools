@@ -14,17 +14,20 @@ import java.util.List;
 import java.util.Map;
 
 public class RenderAnimation {
-    // Add at the class level in RenderAnimation
+    private final LUTManager lutManager = new LUTManager();
+
+    public LUTManager getLUTManager() {
+        return lutManager;
+    }
+
     private final Map<String, Integer> currentFrameMap = new HashMap<>();
-    // Add this interface near the top of the file, after the class declaration
+
     public interface FrameUpdateListener {
         void onFrameUpdate(String partName, int frameIndex);
     }
 
-    // Add this field to store the listener
     private FrameUpdateListener frameUpdateListener;
 
-    // Add this method to set the listener
     public void setFrameUpdateListener(FrameUpdateListener listener) {
         this.frameUpdateListener = listener;
     }
@@ -341,7 +344,10 @@ public class RenderAnimation {
 
                             // Charger l'image avec la taille voulue et sans lissage
                             Image image = new Image(imagePath, scaledWidth, scaledHeight, false, false);
-                            view.setImage(image);
+
+                            Image finalImage = lutManager.applyLUT(partName, image);
+
+                            view.setImage(finalImage);
 
                             // Apply offset
                             view.setTranslateX(offset[0]);
