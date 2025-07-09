@@ -1,4 +1,4 @@
-<img width="1465" alt="Capture d’écran 2025-07-05 à 00 11 00" src="https://github.com/user-attachments/assets/899279e8-c1eb-4b09-b861-d314f0c39b9e" />
+<img width="1470" alt="Capture d’écran 2025-07-09 à 23 18 58" src="https://github.com/user-attachments/assets/29421747-b274-4c68-aa5d-1f35ebe8242d" />
 
 # Disclaimer  
 This app was developed for fun. It probably contains a lot of bugs, and I do not wish to fix them. You have the source code here—if you want, you can do stuff with it.  
@@ -17,7 +17,8 @@ You can:
 - See individual sprites rendered live and edit them (I recommend pausing to do so).  
 - Slow down/accelerate the animation speed.  
 - Play with the scale of the animation.  
-- Edit the sprites live (just press the "refresh" button for them to update).  
+- Edit the sprites live (just press the "refresh" button for them to update).
+- Make groups of body parts and assign them an LUT file, and select the variant you want to render
 
 ## Requirements  
 
@@ -55,7 +56,7 @@ Sometimes, it doesn't work.
 Add this option in the command line and try again (edit the executable link directly so you won’t need to write it again):  
 `-Dprism.order=sw`. Like this:  
 ```bash
-java -Dprism.order=sw --module-path javafx-sdk-21.0.7/lib --add-modules javafx.controls,javafx.fxml --add-exports javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -jar FomTools-1.0-SNAPSHOT.jar
+java -Dprism.order=sw --module-path javafx-sdk-21.0.7/lib --add-modules javafx.controls,javafx.fxml --add-exports javafx.graphics/com.sun.javafx.application=ALL-UNNAMED -jar fomtools-1.2.jar
 ```  
 
 ### Using the app  
