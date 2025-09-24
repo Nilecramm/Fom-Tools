@@ -412,6 +412,11 @@ public class AnimationViewer extends Application {
         removeGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
         removeGroupLUTButton.setOnAction(e -> removeGroupLUT());
 
+        // Bouton pour recharger la LUT du groupe
+        Button refreshGroupLUTButton = new Button("Refresh LUT");
+        refreshGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
+        refreshGroupLUTButton.setOnAction(e -> refreshGroupLUT());
+
         // Listeners
         groupSelectionComboBox.setOnAction(e -> {
             String selectedGroup = groupSelectionComboBox.getValue();
@@ -441,17 +446,20 @@ public class AnimationViewer extends Application {
             boolean hasGroup = selectedGroup != null && !selectedGroup.isEmpty();
             loadGroupLUTButton.setDisable(!hasGroup);
             removeGroupLUTButton.setDisable(!hasGroup || !groupHasLUT(selectedGroup));
+            refreshGroupLUTButton.setDisable(!hasGroup || !groupHasLUT(selectedGroup));
         });
 
         // Désactiver les boutons initialement
         loadGroupLUTButton.setDisable(true);
         removeGroupLUTButton.setDisable(true);
+        refreshGroupLUTButton.setDisable(true);
 
         groupControls.getChildren().addAll(
                 groupLabel,
                 groupSelectionComboBox,
                 loadGroupLUTButton,
-                removeGroupLUTButton
+                removeGroupLUTButton,
+                refreshGroupLUTButton
         );
 
         return groupControls;
@@ -572,6 +580,25 @@ public class AnimationViewer extends Application {
             updatePartsPreviews();
 
             // Mettre à jour les contrôles
+            updateGroupSelectionComboBox();
+        }
+    }
+
+    // Méthode pour recharger la LUT d'un groupe
+    private void refreshGroupLUT() {
+        String selectedGroup = groupSelectionComboBox.getValue();
+        if (selectedGroup == null) return;
+
+        LUTGroupManager.LUTGroup group = groupManager.getGroup(selectedGroup);
+        if (group != null && group.getLutPath() != null) {
+            // Recharger la LUT depuis le fichier
+            groupManager.refreshGroupLUT(selectedGroup, animation.getLUTManager());
+
+            // Rafraîchir l'affichage
+            animation.renderCurrentFrame();
+            updatePartsPreviews();
+
+            // Mettre à jour les contrôles (au cas où le nombre de variantes aurait changé)
             updateGroupSelectionComboBox();
         }
     }
