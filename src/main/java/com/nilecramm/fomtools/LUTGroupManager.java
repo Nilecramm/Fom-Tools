@@ -146,4 +146,20 @@ public class LUTGroupManager {
             }
         }
     }
+
+    /**
+     * Recharge la LUT d'un groupe depuis le fichier sur disque
+     */
+    public void refreshGroupLUT(String groupName, LUTManager lutManager) {
+        LUTGroup group = groups.get(groupName);
+        if (group != null && group.getLutPath() != null) {
+            String lutPath = group.getLutPath();
+            
+            // Recharger la LUT pour toutes les parties du groupe
+            for (String part : group.getParts()) {
+                lutManager.loadLUT(part, lutPath);
+                lutManager.setSelectedColor(part, group.getSelectedVariant());
+            }
+        }
+    }
 }
