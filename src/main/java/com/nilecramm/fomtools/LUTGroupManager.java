@@ -5,10 +5,17 @@ import javafx.collections.ObservableList;
 
 import java.util.*;
 
+/**
+ * Manages groups of body parts that share the same LUT.
+ * Allows applying color variants to multiple parts simultaneously.
+ */
 public class LUTGroupManager {
     private final Map<String, LUTGroup> groups = new HashMap<>();
     private final Map<String, String> partToGroup = new HashMap<>();
 
+    /**
+     * Represents a group of body parts sharing the same LUT
+     */
     public static class LUTGroup {
         private String name;
         private String lutPath;
@@ -21,7 +28,7 @@ public class LUTGroupManager {
             this.parts = new HashSet<>();
         }
 
-        // Getters et setters
+        // Getters and setters
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
         public String getLutPath() { return lutPath; }
@@ -36,7 +43,8 @@ public class LUTGroupManager {
     }
 
     /**
-     * Crée un nouveau groupe
+     * Creates a new group
+     * @param groupName the name of the group to create
      */
     public void createGroup(String groupName) {
         if (!groups.containsKey(groupName)) {
@@ -45,12 +53,12 @@ public class LUTGroupManager {
     }
 
     /**
-     * Supprime un groupe
+     * Deletes a group and removes all its parts
+     * @param groupName the name of the group to delete
      */
     public void deleteGroup(String groupName) {
         LUTGroup group = groups.get(groupName);
         if (group != null) {
-            // Retirer toutes les parties de ce groupe
             for (String part : group.getParts()) {
                 partToGroup.remove(part);
             }
@@ -59,10 +67,11 @@ public class LUTGroupManager {
     }
 
     /**
-     * Ajoute une partie à un groupe
+     * Adds a body part to a group
+     * @param partName the name of the body part
+     * @param groupName the name of the group
      */
     public void addPartToGroup(String partName, String groupName) {
-        // Retirer de l'ancien groupe si nécessaire
         removePartFromCurrentGroup(partName);
 
         LUTGroup group = groups.get(groupName);
@@ -73,7 +82,8 @@ public class LUTGroupManager {
     }
 
     /**
-     * Retire une partie de son groupe actuel
+     * Removes a body part from its current group
+     * @param partName the name of the body part
      */
     public void removePartFromCurrentGroup(String partName) {
         String currentGroup = partToGroup.get(partName);
@@ -87,42 +97,51 @@ public class LUTGroupManager {
     }
 
     /**
-     * Obtient le groupe d'une partie
+     * Gets the group name for a body part
+     * @param partName the name of the body part
+     * @return the group name, or null if the part is not in any group
      */
     public String getPartGroup(String partName) {
         return partToGroup.get(partName);
     }
 
     /**
-     * Obtient tous les groupes
+     * Gets all group names
+     * @return observable list of group names
      */
     public ObservableList<String> getGroupNames() {
         return FXCollections.observableArrayList(groups.keySet());
     }
 
     /**
-     * Obtient un groupe par nom
+     * Gets a group by name
+     * @param groupName the name of the group
+     * @return the LUT group, or null if not found
      */
     public LUTGroup getGroup(String groupName) {
         return groups.get(groupName);
     }
 
     /**
-     * Vérifie si un groupe existe
+     * Checks if a group exists
+     * @param groupName the name of the group
+     * @return true if the group exists
      */
     public boolean hasGroup(String groupName) {
         return groups.containsKey(groupName);
     }
 
     /**
-     * Applique une LUT à toutes les parties d'un groupe
+     * Applies a LUT to all parts in a group
+     * @param groupName the name of the group
+     * @param lutPath the path to the LUT file
+     * @param lutManager the LUT manager instance
      */
     public void setGroupLUT(String groupName, String lutPath, LUTManager lutManager) {
         LUTGroup group = groups.get(groupName);
         if (group != null) {
             group.setLutPath(lutPath);
 
-            // Charger la LUT pour toutes les parties du groupe
             for (String part : group.getParts()) {
                 lutManager.loadLUT(part, lutPath);
                 lutManager.setSelectedColor(part, group.getSelectedVariant());
@@ -131,14 +150,16 @@ public class LUTGroupManager {
     }
 
     /**
-     * Change la variante pour tout un groupe
+     * Changes the color variant for all parts in a group
+     * @param groupName the name of the group
+     * @param variant the variant index
+     * @param lutManager the LUT manager instance
      */
     public void setGroupVariant(String groupName, int variant, LUTManager lutManager) {
         LUTGroup group = groups.get(groupName);
         if (group != null) {
             group.setSelectedVariant(variant);
 
-            // Appliquer à toutes les parties du groupe
             for (String part : group.getParts()) {
                 if (lutManager.hasLUT(part)) {
                     lutManager.setSelectedColor(part, variant);
@@ -148,14 +169,15 @@ public class LUTGroupManager {
     }
 
     /**
-     * Recharge la LUT d'un groupe depuis le fichier sur disque
+     * Reloads the LUT for a group from disk
+     * @param groupName the name of the group
+     * @param lutManager the LUT manager instance
      */
     public void refreshGroupLUT(String groupName, LUTManager lutManager) {
         LUTGroup group = groups.get(groupName);
         if (group != null && group.getLutPath() != null) {
             String lutPath = group.getLutPath();
             
-            // Recharger la LUT pour toutes les parties du groupe
             for (String part : group.getParts()) {
                 lutManager.loadLUT(part, lutPath);
                 lutManager.setSelectedColor(part, group.getSelectedVariant());

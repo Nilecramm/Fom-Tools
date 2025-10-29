@@ -11,6 +11,10 @@ import javafx.stage.Stage;
 
 import java.util.List;
 
+/**
+ * Window for managing LUT groups.
+ * Allows creating groups, assigning body parts to groups, and managing group properties.
+ */
 public class GroupManagerWindow {
     private final LUTGroupManager groupManager;
     private final List<String> availableParts;
@@ -36,7 +40,7 @@ public class GroupManagerWindow {
         window.setTitle("LUT Group Manager");
         window.initModality(Modality.APPLICATION_MODAL);
 
-        // Liste des groupes
+        // Groups list section
         VBox groupsSection = new VBox(10);
         groupsSection.setPadding(new Insets(10));
 
@@ -55,7 +59,7 @@ public class GroupManagerWindow {
         groupButtons.getChildren().addAll(addGroupBtn, deleteGroupBtn);
         groupsSection.getChildren().addAll(groupsLabel, groupsList, groupButtons);
 
-        // Parties dans le groupe sélectionné
+        // Parts in selected group section
         VBox partsInGroupSection = new VBox(10);
         partsInGroupSection.setPadding(new Insets(10));
 
@@ -70,11 +74,11 @@ public class GroupManagerWindow {
 
         partsInGroupSection.getChildren().addAll(partsInGroupLabel, partsInGroupList, removePartBtn);
 
-        // Parties disponibles
+        // Available parts section
         VBox availablePartsSection = new VBox(10);
         availablePartsSection.setPadding(new Insets(10));
 
-        Label availablePartsLabel = new Label("Disponible parts:");
+        Label availablePartsLabel = new Label("Available parts:");
         availablePartsLabel.setStyle("-fx-font-weight: bold;");
 
         availablePartsList = new ListView<>();
@@ -86,13 +90,13 @@ public class GroupManagerWindow {
 
         availablePartsSection.getChildren().addAll(availablePartsLabel, availablePartsList, addPartBtn);
 
-        // Actions
+        // Action handlers
         addGroupBtn.setOnAction(e -> createNewGroup());
         deleteGroupBtn.setOnAction(e -> deleteSelectedGroup());
         addPartBtn.setOnAction(e -> addPartToSelectedGroup());
         removePartBtn.setOnAction(e -> removePartFromSelectedGroup());
 
-        // Listeners pour activer/désactiver les boutons
+        // Listeners to enable/disable buttons
         groupsList.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             deleteGroupBtn.setDisable(newVal == null);
             addPartBtn.setDisable(newVal == null || availablePartsList.getSelectionModel().getSelectedItem() == null);
@@ -212,7 +216,7 @@ public class GroupManagerWindow {
     private void updateAvailablePartsList() {
         availablePartsList.getItems().clear();
 
-        // Ajouter seulement les parties qui ne sont dans aucun groupe
+        // Add only parts that are not in any group
         for (String part : availableParts) {
             if (groupManager.getPartGroup(part) == null) {
                 availablePartsList.getItems().add(part);

@@ -12,13 +12,23 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Manages Look-Up Tables (LUTs) for sprite color transformations.
+ * LUTs allow applying color palettes to sprites for customization.
+ */
 public class LUTManager {
+    private static final double COLOR_TOLERANCE = 0.01;
+    private static final double MIN_COLOR_THRESHOLD = 0.01;
+    
     private final Map<String, Image> loadedLUTs = new HashMap<>();
     private final Map<String, Integer> selectedColors = new HashMap<>();
     private final Map<String, Map<Color, Integer>> colorMappings = new HashMap<>();
 
     /**
-     * Charge un fichier LUT et analyse les couleurs template
+     * Loads a LUT file and analyzes template colors
+     * @param partName the body part name
+     * @param lutPath the path to the LUT file
+     * @return true if loading was successful
      */
     public boolean loadLUT(String partName, String lutPath) {
         try {
@@ -42,7 +52,9 @@ public class LUTManager {
     }
 
     /**
-     * Obtient les indices des variantes disponibles
+     * Gets the indices of available color variants
+     * @param partName the body part name
+     * @return list of available variant indices
      */
     public List<Integer> getAvailableVariantIndices(String partName) {
         Image lut = loadedLUTs.get(partName);
@@ -55,17 +67,20 @@ public class LUTManager {
         int width = (int) lut.getWidth();
         List<Integer> validIndices = new ArrayList<>();
 
-        // Les variantes sont les COLONNES, pas les lignes !
+        // Variants are COLUMNS, not rows
         for (int x = 0; x < width; x++) {
             validIndices.add(x);
         }
 
-        System.out.println("Variantes détectées pour " + partName + ": " + validIndices.size() + " colonnes");
+        System.out.println("Detected variants for " + partName + ": " + validIndices.size() + " columns");
         return validIndices;
     }
 
     /**
-     * Applique la LUT à un sprite
+     * Applies the LUT to a sprite image
+     * @param partName the body part name
+     * @param originalSprite the original sprite image
+     * @return the transformed sprite image with LUT applied, or original if no LUT is set
      */
     public Image applyLUT(String partName, Image originalSprite) {
         Image lut = loadedLUTs.get(partName);
@@ -73,7 +88,7 @@ public class LUTManager {
         Map<Color, Integer> colorMapping = colorMappings.get(partName);
 
         if (lut == null || variantColumn == null || variantColumn == 0 || colorMapping == null) {
-            return originalSprite; // Pas de LUT ou couleur de base
+            return originalSprite; // No LUT or base color
         }
 
         int width = (int) originalSprite.getWidth();
@@ -89,11 +104,10 @@ public class LUTManager {
                 Color originalColor = spriteReader.getColor(x, y);
 
                 if (originalColor.getOpacity() > 0) {
-                    // Chercher si cette couleur correspond à une couleur template (colonne 0)
                     Integer templateRow = findMatchingTemplateColor(originalColor, colorMapping);
 
                     if (templateRow != null) {
-                        // Remplacer par la couleur de la variante sélectionnée (même ligne, colonne différente)
+                        // Replace with the selected variant color (same row, different column)
                         Color newColor = lutReader.getColor(variantColumn, templateRow);
                         resultWriter.setColor(x, y, newColor);
                     } else {
@@ -109,12 +123,12 @@ public class LUTManager {
     }
 
     /**
-     * Trouve la ligne LUT correspondant à une couleur du sprite
+     * Finds the LUT row corresponding to a sprite color
      */
     private Integer findMatchingTemplateColor(Color spriteColor, Map<Color, Integer> colorMapping) {
         for (Map.Entry<Color, Integer> entry : colorMapping.entrySet()) {
             if (colorsMatch(spriteColor, entry.getKey())) {
-                return entry.getValue(); // Retourne la LIGNE, pas la colonne
+                return entry.getValue(); // Returns the ROW, not the column
             }
         }
         return null;
@@ -126,18 +140,20 @@ public class LUTManager {
 
         int height = (int) lutImage.getHeight();
 
-        System.out.println("=== Analyse LUT pour " + partName + " ===");
-        System.out.println("Taille: " + (int)lutImage.getWidth() + "x" + height);
+        System.out.println("=== LUT Analysis for " + partName + " ===");
+        System.out.println("Size: " + (int)lutImage.getWidth() + "x" + height);
 
-        // Analyser TOUTES les lignes de la colonne 0 (couleurs template)
+        // Analyze ALL rows of column 0 (template colors)
         for (int y = 0; y < height; y++) {
-            Color templateColor = reader.getColor(0, y); // COLONNE 0 seulement
+            Color templateColor = reader.getColor(0, y); // Column 0 only
 
             if (templateColor.getOpacity() > 0 &&
-                    (templateColor.getRed() > 0.01 || templateColor.getGreen() > 0.01 || templateColor.getBlue() > 0.01)) {
+                    (templateColor.getRed() > MIN_COLOR_THRESHOLD || 
+                     templateColor.getGreen() > MIN_COLOR_THRESHOLD || 
+                     templateColor.getBlue() > MIN_COLOR_THRESHOLD)) {
 
-                mapping.put(templateColor, y); // Associer couleur -> LIGNE
-                System.out.println("Couleur template détectée à la ligne " + y +
+                mapping.put(templateColor, y); // Associate color -> ROW
+                System.out.println("Template color detected at row " + y +
                         ": R=" + String.format("%.3f", templateColor.getRed()) +
                         ", G=" + String.format("%.3f", templateColor.getGreen()) +
                         ", B=" + String.format("%.3f", templateColor.getBlue()));
@@ -145,44 +161,49 @@ public class LUTManager {
         }
 
         colorMappings.put(partName, mapping);
-        System.out.println("Total: " + mapping.size() + " couleurs template détectées");
+        System.out.println("Total: " + mapping.size() + " template colors detected");
         System.out.println("===============================");
     }
 
     /**
-     * Obtient le nombre de variantes disponibles (pour compatibilité)
+     * Gets the number of available variants (for compatibility)
+     * @param partName the body part name
+     * @return the number of available color variants
      */
     public int getColorCount(String partName) {
         return getAvailableVariantIndices(partName).size();
     }
 
     /**
-     * Compare deux couleurs avec une petite tolerance pour les différences de compression
+     * Compares two colors with a small tolerance for compression differences
      */
     private boolean colorsMatch(Color c1, Color c2) {
-        double tolerance = 0.01; // Tolérance pour les différences de compression PNG
-
-        return Math.abs(c1.getRed() - c2.getRed()) < tolerance &&
-                Math.abs(c1.getGreen() - c2.getGreen()) < tolerance &&
-                Math.abs(c1.getBlue() - c2.getBlue()) < tolerance;
+        return Math.abs(c1.getRed() - c2.getRed()) < COLOR_TOLERANCE &&
+                Math.abs(c1.getGreen() - c2.getGreen()) < COLOR_TOLERANCE &&
+                Math.abs(c1.getBlue() - c2.getBlue()) < COLOR_TOLERANCE;
     }
 
     /**
-     * Définit la couleur sélectionnée pour une partie
+     * Sets the selected color variant for a body part
+     * @param partName the body part name
+     * @param colorIndex the color variant index
      */
     public void setSelectedColor(String partName, int colorIndex) {
         selectedColors.put(partName, colorIndex);
     }
 
     /**
-     * Vérifie si une partie a une LUT chargée
+     * Checks if a body part has a loaded LUT
+     * @param partName the body part name
+     * @return true if a LUT is loaded for this part
      */
     public boolean hasLUT(String partName) {
         return loadedLUTs.containsKey(partName);
     }
 
     /**
-     * Supprime la LUT d'une partie
+     * Removes the LUT for a body part
+     * @param partName the body part name
      */
     public void removeLUT(String partName) {
         loadedLUTs.remove(partName);

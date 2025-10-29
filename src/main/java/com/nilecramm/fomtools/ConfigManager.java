@@ -3,9 +3,17 @@ package com.nilecramm.fomtools;
 import java.io.*;
 import java.util.Properties;
 
+/**
+ * Manages application configuration stored in a properties file.
+ * Handles loading and saving of user preferences such as folder paths and editor settings.
+ */
 public class ConfigManager {
     private static final String CONFIG_FILE = "options.properties";
-    private Properties properties;
+    private static final String CHARACTERS_PATH_KEY = "characters.path";
+    private static final String EDITOR_PATH_KEY = "editor.path";
+    private static final String DEFAULT_PATH = "";
+    
+    private final Properties properties;
 
     public ConfigManager() {
         properties = new Properties();
@@ -39,31 +47,35 @@ public class ConfigManager {
 
     /**
      * Gets the characters folder path
+     * @return the characters folder path, or empty string if not set
      */
     public String getCharactersPath() {
-        return properties.getProperty("characters.path", "");
+        return properties.getProperty(CHARACTERS_PATH_KEY, DEFAULT_PATH);
     }
 
     /**
      * Sets the characters folder path
+     * @param path the path to the characters folder
      */
     public void setCharactersPath(String path) {
-        properties.setProperty("characters.path", path);
+        properties.setProperty(CHARACTERS_PATH_KEY, path);
         saveConfig();
     }
 
     /**
      * Gets the custom editor path
+     * @return the custom editor path, or empty string if not set
      */
     public String getCustomEditorPath() {
-        return properties.getProperty("editor.path", "");
+        return properties.getProperty(EDITOR_PATH_KEY, DEFAULT_PATH);
     }
 
     /**
      * Sets the custom editor path
+     * @param path the path to the custom editor
      */
     public void setCustomEditorPath(String path) {
-        properties.setProperty("editor.path", path);
+        properties.setProperty(EDITOR_PATH_KEY, path);
         saveConfig();
     }
 }
