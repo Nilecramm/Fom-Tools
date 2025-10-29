@@ -74,7 +74,7 @@ public class AnimationViewer extends Application {
     
     /**
      * Loads the JSON animation data file
-     * @return the loaded JsonData, or null if loading failed
+     * @return the loaded JsonData containing animation configuration, or null if loading failed
      */
     private JsonData loadJsonData() {
         try {
@@ -86,6 +86,7 @@ public class AnimationViewer extends Application {
     }
     /**
      * Opens a dialog to select the characters folder
+     * @param primaryStage the primary stage used as parent for the dialog
      */
     private void selectCharactersFolder(Stage primaryStage) {
         DirectoryChooser directoryChooser = new DirectoryChooser();
@@ -108,7 +109,7 @@ public class AnimationViewer extends Application {
     }
     
     /**
-     * Opens a dialog to select a custom image editor
+     * Opens a dialog to select a custom image editor and saves the selection to configuration
      */
     private void selectCustomEditor() {
         javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
@@ -352,6 +353,11 @@ public class AnimationViewer extends Application {
     
     /**
      * Refreshes the character animation, preserving pause state
+     * @param characterComboBox the ComboBox containing character selection
+     * @param actionComboBox the ComboBox containing action selection
+     * @param directionComboBox the ComboBox containing direction selection
+     * @param pauseButton the pause/resume button to update
+     * @param detectedPartsLabel the label showing detected body parts
      */
     private void refreshCharacterAnimation(ComboBox<String> characterComboBox, 
                                           ComboBox<String> actionComboBox, 
@@ -389,6 +395,7 @@ public class AnimationViewer extends Application {
 
     /**
      * Creates the group controls UI section
+     * @return VBox containing the group controls UI elements
      */
     private VBox createGroupControls() {
         VBox groupControls = new VBox(10);
@@ -599,6 +606,9 @@ public class AnimationViewer extends Application {
 
     /**
      * Creates a visual preview of a color variant
+     * @param partName the name of the body part to create preview for
+     * @param variantIndex the color variant index
+     * @return ImageView containing the color variant preview
      */
     private ImageView createVariantPreview(String partName, int variantIndex) {
         int previewWidth = 80;
@@ -671,6 +681,9 @@ public class AnimationViewer extends Application {
 
     /**
      * Fills an image with a gray gradient
+     * @param writer the pixel writer to write to
+     * @param width the width of the image
+     * @param height the height of the image
      */
     private void fillWithGradient(PixelWriter writer, int width, int height) {
         for (int x = 0; x < width; x++) {
@@ -684,6 +697,8 @@ public class AnimationViewer extends Application {
 
     /**
      * Creates a custom ComboBox that displays color variant previews
+     * @param groupName the name of the group to create previews for
+     * @return ComboBox with custom cell factory for variant previews
      */
     private ComboBox<String> createVariantComboBoxWithPreviews(String groupName) {
         ComboBox<String> variantComboBox = new ComboBox<>();
