@@ -52,26 +52,12 @@ public class AnimationViewer extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
-            // Initialiser le gestionnaire de configuration
             configManager = new ConfigManager();
-
-            // Charger les paramètres sauvegardés
             charactersBasePath = configManager.getCharactersPath();
             customEditorPath = configManager.getCustomEditorPath();
 
-            // Create menu bar
             MenuBar menuBar = createMenuBar(primaryStage);
-
-            // Le reste du code reste identique...
-            ReadJson readJson = new ReadJson();
-            JsonData jsonData = null;
-
-            try {
-                jsonData = readJson.readJson("par_output.json");
-            } catch (Exception e) {
-                showMissingFileWindow(primaryStage, menuBar);
-                return;
-            }
+            JsonData jsonData = loadJsonData();
 
             if (jsonData == null || jsonData.base_arm_left == null) {
                 showMissingFileWindow(primaryStage, menuBar);
@@ -85,11 +71,26 @@ public class AnimationViewer extends Application {
             showMissingFileWindow(primaryStage, createMenuBar(primaryStage));
         }
     }
+    
+    /**
+     * Loads the JSON animation data file
+     * @return the loaded JsonData, or null if loading failed
+     */
+    private JsonData loadJsonData() {
+        try {
+            ReadJson readJson = new ReadJson();
+            return readJson.readJson("par_output.json");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    /**
+     * Opens a dialog to select the characters folder
+     */
     private void selectCharactersFolder(Stage primaryStage) {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Select Characters Folder");
 
-        // Set initial directory if possible
         File initialDirectory = new File(charactersBasePath);
         if (initialDirectory.exists()) {
             directoryChooser.setInitialDirectory(initialDirectory);
@@ -98,17 +99,17 @@ public class AnimationViewer extends Application {
         File selectedDirectory = directoryChooser.showDialog(primaryStage);
         if (selectedDirectory != null) {
             charactersBasePath = selectedDirectory.getAbsolutePath() + File.separator;
-
-            // Sauvegarder dans la configuration
             configManager.setCharactersPath(charactersBasePath);
-
             refreshCharacterList();
-
             showAlert("File Selection",
                     "File defined: " + charactersBasePath,
                     Alert.AlertType.INFORMATION);
         }
     }
+    
+    /**
+     * Opens a dialog to select a custom image editor
+     */
     private void selectCustomEditor() {
         javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
         fileChooser.setTitle("Select Image Editor Application");
@@ -126,12 +127,9 @@ public class AnimationViewer extends Application {
         File selectedFile = fileChooser.showOpenDialog(null);
         if (selectedFile != null) {
             customEditorPath = selectedFile.getAbsolutePath();
-
-            // Sauvegarder dans la configuration
             configManager.setCustomEditorPath(customEditorPath);
-
-            showAlert("Éditeur défini",
-                    "Éditeur personnalisé défini sur : " + customEditorPath,
+            showAlert("Editor Defined",
+                    "Custom editor set to: " + customEditorPath,
                     Alert.AlertType.INFORMATION);
         }
     }
@@ -301,42 +299,8 @@ public class AnimationViewer extends Application {
         // Add a refresh button
         Button refreshButton = new Button("Refresh");
         refreshButton.setMaxWidth(Double.MAX_VALUE);
-        refreshButton.setOnAction(e -> {
-            // Save the current pause state
-            boolean wasPaused = animation.isPaused();
-
-            // Force pause if not already paused
-            if (!wasPaused) {
-                animation.togglePause();
-            }
-
-            // Reload character and animation
-            String characterPath = charactersBasePath + characterComboBox.getValue();
-            boolean loaded = animation.loadCharacter(characterPath);
-            if (loaded) {
-                animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
-                updateDetectedPartsLabel(detectedPartsLabel);
-
-                // Force render the current frame if paused
-                if (wasPaused || animation.isPaused()) {
-                    animation.renderCurrentFrame();
-                    // Update the sprite previews as well
-                    updatePartsPreviews();
-                }
-
-                // Make sure it's paused again if it was paused before
-                if (wasPaused && !animation.isPaused()) {
-                    animation.togglePause();
-                    pauseButton.setText("Resume");
-                }
-
-                // If we forced pause earlier, unpause it
-                if (!wasPaused && animation.isPaused()) {
-                    animation.togglePause();
-                    pauseButton.setText("Pause");
-                }
-            }
-        });
+        refreshButton.setOnAction(e -> refreshCharacterAnimation(
+                characterComboBox, actionComboBox, directionComboBox, pauseButton, detectedPartsLabel));
 
         // Scrolling area for part information
         ScrollPane detectedPartsScroll = new ScrollPane(detectedPartsLabel);
@@ -383,50 +347,80 @@ public class AnimationViewer extends Application {
         // Center the window
         primaryStage.centerOnScreen();
 
-        // This is the missing line that makes the window visible
         primaryStage.show();
     }
+    
+    /**
+     * Refreshes the character animation, preserving pause state
+     */
+    private void refreshCharacterAnimation(ComboBox<String> characterComboBox, 
+                                          ComboBox<String> actionComboBox, 
+                                          ComboBox<String> directionComboBox, 
+                                          Button pauseButton, 
+                                          Label detectedPartsLabel) {
+        boolean wasPaused = animation.isPaused();
 
+        if (!wasPaused) {
+            animation.togglePause();
+        }
+
+        String characterPath = charactersBasePath + characterComboBox.getValue();
+        boolean loaded = animation.loadCharacter(characterPath);
+        if (loaded) {
+            animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
+            updateDetectedPartsLabel(detectedPartsLabel);
+
+            if (wasPaused || animation.isPaused()) {
+                animation.renderCurrentFrame();
+                updatePartsPreviews();
+            }
+
+            if (wasPaused && !animation.isPaused()) {
+                animation.togglePause();
+                pauseButton.setText("Resume");
+            }
+
+            if (!wasPaused && animation.isPaused()) {
+                animation.togglePause();
+                pauseButton.setText("Pause");
+            }
+        }
+    }
+
+    /**
+     * Creates the group controls UI section
+     */
     private VBox createGroupControls() {
         VBox groupControls = new VBox(10);
 
         Label groupLabel = new Label("LUT Groups:");
         groupLabel.setStyle("-fx-font-weight: bold;");
 
-        // ComboBox pour sélectionner un groupe
         groupSelectionComboBox = new ComboBox<>();
         groupSelectionComboBox.setMaxWidth(Double.MAX_VALUE);
         groupSelectionComboBox.setPromptText("Select a group...");
         updateGroupSelectionComboBox();
 
-        // Bouton pour charger une LUT pour le groupe sélectionné
         Button loadGroupLUTButton = new Button("Load Group LUT");
         loadGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
         loadGroupLUTButton.setOnAction(e -> loadLUTForSelectedGroup());
 
-        // Variable pour la ComboBox des variantes (on la recrée quand le groupe change)
         final ComboBox<String>[] groupVariantComboBox = new ComboBox[1];
 
-        // Bouton pour supprimer la LUT du groupe
         Button removeGroupLUTButton = new Button("Remove Group LUT");
         removeGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
         removeGroupLUTButton.setOnAction(e -> removeGroupLUT());
 
-        // Bouton pour recharger la LUT du groupe
         Button refreshGroupLUTButton = new Button("Refresh LUT");
         refreshGroupLUTButton.setMaxWidth(Double.MAX_VALUE);
         refreshGroupLUTButton.setOnAction(e -> refreshGroupLUT());
-
-        // Listeners
         groupSelectionComboBox.setOnAction(e -> {
             String selectedGroup = groupSelectionComboBox.getValue();
 
-            // Retirer l'ancienne ComboBox si elle existe
             if (groupVariantComboBox[0] != null) {
                 groupControls.getChildren().remove(groupVariantComboBox[0]);
             }
 
-            // Créer une nouvelle ComboBox avec les aperçus pour ce groupe
             if (selectedGroup != null && groupManager.hasGroup(selectedGroup)) {
                 groupVariantComboBox[0] = createVariantComboBoxWithPreviews(selectedGroup);
                 updateGroupVariantComboBox(groupVariantComboBox[0], selectedGroup);
@@ -438,7 +432,6 @@ public class AnimationViewer extends Application {
                     }
                 });
 
-                // Insérer la nouvelle ComboBox à la bonne position (après le bouton Load)
                 int insertIndex = groupControls.getChildren().indexOf(loadGroupLUTButton) + 1;
                 groupControls.getChildren().add(insertIndex, groupVariantComboBox[0]);
             }
@@ -449,7 +442,6 @@ public class AnimationViewer extends Application {
             refreshGroupLUTButton.setDisable(!hasGroup || !groupHasLUT(selectedGroup));
         });
 
-        // Désactiver les boutons initialement
         loadGroupLUTButton.setDisable(true);
         removeGroupLUTButton.setDisable(true);
         refreshGroupLUTButton.setDisable(true);
@@ -519,7 +511,9 @@ public class AnimationViewer extends Application {
         }
     }
 
-    // Méthode pour charger une LUT pour le groupe sélectionné
+    /**
+     * Loads a LUT file for the selected group
+     */
     private void loadLUTForSelectedGroup() {
         String selectedGroup = groupSelectionComboBox.getValue();
         if (selectedGroup == null) return;
@@ -533,77 +527,69 @@ public class AnimationViewer extends Application {
         File selectedFile = fileChooser.showOpenDialog(spritePartsContainer.getScene().getWindow());
         if (selectedFile != null) {
             groupManager.setGroupLUT(selectedGroup, selectedFile.getAbsolutePath(), animation.getLUTManager());
-
-            // Rafraîchir l'affichage
             animation.renderCurrentFrame();
             updatePartsPreviews();
-
-            // Mettre à jour les contrôles
             updateGroupSelectionComboBox();
         }
     }
 
-    // Méthode pour appliquer une variante à un groupe
+    /**
+     * Applies a color variant to all parts in a group
+     */
     private void applyGroupVariant(String groupName, String variantLabel) {
-        if (!groupManager.hasGroup(groupName)) return;
+        if (!groupManager.hasGroup(groupName)) {
+            return;
+        }
 
-        // Convertir le label en index
         int variantIndex = variantLabel.equals("Base") ? 0 :
                 Integer.parseInt(variantLabel.replace("Variant ", ""));
 
         groupManager.setGroupVariant(groupName, variantIndex, animation.getLUTManager());
-
-        // Rafraîchir l'affichage
         animation.renderCurrentFrame();
         updatePartsPreviews();
-
     }
 
-    // Méthode pour supprimer la LUT d'un groupe
+    /**
+     * Removes the LUT from the selected group
+     */
     private void removeGroupLUT() {
         String selectedGroup = groupSelectionComboBox.getValue();
         if (selectedGroup == null) return;
 
         LUTGroupManager.LUTGroup group = groupManager.getGroup(selectedGroup);
         if (group != null) {
-            // Supprimer la LUT de toutes les parties du groupe
             for (String part : group.getParts()) {
                 animation.getLUTManager().removeLUT(part);
             }
 
-            // Nettoyer les données du groupe
             group.setLutPath(null);
             group.setSelectedVariant(0);
 
-            // Rafraîchir l'affichage
             animation.renderCurrentFrame();
             updatePartsPreviews();
-
-            // Mettre à jour les contrôles
             updateGroupSelectionComboBox();
         }
     }
 
-    // Méthode pour recharger la LUT d'un groupe
+    /**
+     * Refreshes the LUT for the selected group from disk
+     */
     private void refreshGroupLUT() {
         String selectedGroup = groupSelectionComboBox.getValue();
         if (selectedGroup == null) return;
 
         LUTGroupManager.LUTGroup group = groupManager.getGroup(selectedGroup);
         if (group != null && group.getLutPath() != null) {
-            // Recharger la LUT depuis le fichier
             groupManager.refreshGroupLUT(selectedGroup, animation.getLUTManager());
-
-            // Rafraîchir l'affichage
             animation.renderCurrentFrame();
             updatePartsPreviews();
-
-            // Mettre à jour les contrôles (au cas où le nombre de variantes aurait changé)
             updateGroupSelectionComboBox();
         }
     }
 
-    // Méthode pour vérifier si un groupe a une LUT
+    /**
+     * Checks if a group has a LUT loaded
+     */
     private boolean groupHasLUT(String groupName) {
         if (!groupManager.hasGroup(groupName)) return false;
 
@@ -611,16 +597,16 @@ public class AnimationViewer extends Application {
         return group.getLutPath() != null;
     }
 
-    // Méthode pour créer un aperçu visuel des couleurs d'une variante
+    /**
+     * Creates a visual preview of a color variant
+     */
     private ImageView createVariantPreview(String partName, int variantIndex) {
-        // Créer une petite image avec les couleurs de la variante
         int previewWidth = 80;
         int previewHeight = 16;
 
         WritableImage previewImage = new WritableImage(previewWidth, previewHeight);
         PixelWriter writer = previewImage.getPixelWriter();
 
-        // Obtenir la LUT pour cette partie via le groupe
         try {
             String groupName = groupManager.getPartGroup(partName);
             if (groupName != null) {
@@ -632,22 +618,18 @@ public class AnimationViewer extends Application {
                     int lutHeight = (int) lutImage.getHeight();
                     int lutWidth = (int) lutImage.getWidth();
 
-                    // Vérifier que l'index de variante est valide
                     if (variantIndex < lutWidth) {
-                        // Obtenir seulement les couleurs non-transparentes et non-noires
                         List<Color> validColors = new ArrayList<>();
 
                         for (int y = 0; y < lutHeight; y++) {
                             Color lutColor = lutReader.getColor(variantIndex, y);
 
-                            // Ignorer les couleurs transparentes et quasi-noires
                             if (lutColor.getOpacity() > 0.1 &&
                                     (lutColor.getRed() > 0.05 || lutColor.getGreen() > 0.05 || lutColor.getBlue() > 0.05)) {
                                 validColors.add(lutColor);
                             }
                         }
 
-                        // Si on a des couleurs valides, les afficher
                         if (!validColors.isEmpty()) {
                             int colorWidth = previewWidth / validColors.size();
 
@@ -663,23 +645,18 @@ public class AnimationViewer extends Application {
                                 }
                             }
                         } else {
-                            // Si pas de couleurs valides, afficher un dégradé gris
                             fillWithGradient(writer, previewWidth, previewHeight);
                         }
                     } else {
-                        // Index invalide, afficher un dégradé gris
                         fillWithGradient(writer, previewWidth, previewHeight);
                     }
                 } else {
-                    // Pas de LUT, afficher un dégradé gris
                     fillWithGradient(writer, previewWidth, previewHeight);
                 }
             } else {
-                // Partie pas dans un groupe, afficher un dégradé gris
                 fillWithGradient(writer, previewWidth, previewHeight);
             }
         } catch (Exception e) {
-            // En cas d'erreur, afficher un dégradé gris
             fillWithGradient(writer, previewWidth, previewHeight);
         }
 
@@ -692,10 +669,12 @@ public class AnimationViewer extends Application {
         return previewView;
     }
 
-    // Méthode helper pour remplir avec un dégradé gris
+    /**
+     * Fills an image with a gray gradient
+     */
     private void fillWithGradient(PixelWriter writer, int width, int height) {
         for (int x = 0; x < width; x++) {
-            double intensity = 0.7 + (0.2 * x / width); // Dégradé de gris
+            double intensity = 0.7 + (0.2 * x / width);
             Color grayColor = Color.gray(intensity);
             for (int y = 0; y < height; y++) {
                 writer.setColor(x, y, grayColor);
@@ -703,7 +682,9 @@ public class AnimationViewer extends Application {
         }
     }
 
-    // Créer une version custom de ComboBox qui affiche les aperçus
+    /**
+     * Creates a custom ComboBox that displays color variant previews
+     */
     private ComboBox<String> createVariantComboBoxWithPreviews(String groupName) {
         ComboBox<String> variantComboBox = new ComboBox<>();
         variantComboBox.setMaxWidth(Double.MAX_VALUE);
@@ -718,8 +699,6 @@ public class AnimationViewer extends Application {
             {
                 content.setAlignment(Pos.CENTER_LEFT);
                 content.getChildren().addAll(textLabel, preview);
-
-                // Forcer le texte en noir
                 textLabel.setStyle("-fx-text-fill: black;");
             }
 
@@ -733,11 +712,9 @@ public class AnimationViewer extends Application {
                 } else {
                     textLabel.setText(item);
 
-                    // Obtenir l'index de la variante
                     int variantIndex = item.equals("Base") ? 0 :
                             Integer.parseInt(item.replace("Variant ", ""));
 
-                    // Obtenir une partie du groupe pour créer l'aperçu
                     LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
                     if (group != null && !group.getParts().isEmpty()) {
                         String samplePart = group.getParts().iterator().next();
@@ -751,13 +728,11 @@ public class AnimationViewer extends Application {
 
                     setGraphic(content);
                     setText(null);
-                    // Forcer le style de la cellule
                     setStyle("-fx-text-fill: black;");
                 }
             }
         });
 
-        // Également personnaliser l'affichage du bouton (élément sélectionné)
         variantComboBox.setButtonCell(new ListCell<String>() {
             private final HBox content = new HBox(10);
             private final Label textLabel = new Label();
@@ -766,8 +741,6 @@ public class AnimationViewer extends Application {
             {
                 content.setAlignment(Pos.CENTER_LEFT);
                 content.getChildren().addAll(textLabel, preview);
-
-                // Forcer le texte en noir
                 textLabel.setStyle("-fx-text-fill: black;");
             }
 
@@ -781,11 +754,9 @@ public class AnimationViewer extends Application {
                 } else {
                     textLabel.setText(item);
 
-                    // Obtenir l'index de la variante
                     int variantIndex = item.equals("Base") ? 0 :
                             Integer.parseInt(item.replace("Variant ", ""));
 
-                    // Obtenir une partie du groupe pour créer l'aperçu
                     LUTGroupManager.LUTGroup group = groupManager.getGroup(groupName);
                     if (group != null && !group.getParts().isEmpty()) {
                         String samplePart = group.getParts().iterator().next();
@@ -799,7 +770,6 @@ public class AnimationViewer extends Application {
 
                     setGraphic(content);
                     setText(null);
-                    // Forcer le style de la cellule
                     setStyle("-fx-text-fill: black;");
                 }
             }
@@ -838,15 +808,14 @@ public class AnimationViewer extends Application {
         return menuBar;
     }
 
+    /**
+     * Opens the group manager window
+     */
     private void openGroupManagerWindow() {
         List<String> availableParts = animation.getAvailableBodyParts();
         GroupManagerWindow groupWindow = new GroupManagerWindow(groupManager, availableParts);
 
-        // Définir le callback pour mettre à jour la ComboBox principale ET sauvegarder
-        groupWindow.setOnGroupsChangedCallback(() -> {
-            updateGroupSelectionComboBox();
-        });
-
+        groupWindow.setOnGroupsChangedCallback(this::updateGroupSelectionComboBox);
         groupWindow.show();
     }
 
@@ -854,39 +823,28 @@ public class AnimationViewer extends Application {
      * Refreshes the list of available characters in the ComboBox
      */
     private void refreshCharacterList() {
-        // Find the ComboBox in the scene
         Scene scene = ((Stage) spritePartsContainer.getScene().getWindow()).getScene();
         ComboBox<String> characterComboBox = null;
 
-        // Search for the ComboBox in the UI hierarchy
         for (Node node : scene.getRoot().lookupAll(".combo-box")) {
             if (node instanceof ComboBox) {
-                // This assumes the first ComboBox found is the character selection one
                 characterComboBox = (ComboBox<String>) node;
                 break;
             }
         }
 
         if (characterComboBox != null) {
-            // Save the current selection if possible
             String currentSelection = characterComboBox.getValue();
-
-            // Get the updated list of characters
             List<String> characters = SpriteLoader.listCharacterFolders(charactersBasePath);
-
-            // Update the ComboBox items
             characterComboBox.setItems(FXCollections.observableArrayList(characters));
 
-            // Try to restore previous selection if it still exists, otherwise select first item
             if (characters.contains(currentSelection)) {
                 characterComboBox.setValue(currentSelection);
             } else if (!characters.isEmpty()) {
                 characterComboBox.setValue(characters.get(0));
-                // Load the first character
                 String characterPath = charactersBasePath + characters.get(0);
                 boolean loaded = animation.loadCharacter(characterPath);
                 if (loaded) {
-                    // Get the ComboBox values for action and direction
                     ComboBox<String> actionComboBox = findActionComboBox(scene);
                     ComboBox<String> directionComboBox = findDirectionComboBox(scene);
 
@@ -894,7 +852,6 @@ public class AnimationViewer extends Application {
                         animation.setAnimation(actionComboBox.getValue(), directionComboBox.getValue());
                     }
 
-                    // Update parts label
                     updateAllLabels(scene);
                 }
             }
@@ -902,34 +859,28 @@ public class AnimationViewer extends Application {
     }
 
     /**
-     * Finds the action ComboBox in the scene
+     * Finds the action ComboBox in the scene (assumes it's the second one)
      */
     private ComboBox<String> findActionComboBox(Scene scene) {
-        // This is a simple implementation. You may need to adjust the logic to find the correct ComboBox.
         List<ComboBox> comboBoxes = new ArrayList<>();
         for (Node node : scene.getRoot().lookupAll(".combo-box")) {
             if (node instanceof ComboBox) {
                 comboBoxes.add((ComboBox) node);
             }
         }
-
-        // Assuming the action ComboBox is the second one
         return comboBoxes.size() > 1 ? comboBoxes.get(1) : null;
     }
 
     /**
-     * Finds the direction ComboBox in the scene
+     * Finds the direction ComboBox in the scene (assumes it's the third one)
      */
     private ComboBox<String> findDirectionComboBox(Scene scene) {
-        // This is a simple implementation. You may need to adjust the logic to find the correct ComboBox.
         List<ComboBox> comboBoxes = new ArrayList<>();
         for (Node node : scene.getRoot().lookupAll(".combo-box")) {
             if (node instanceof ComboBox) {
                 comboBoxes.add((ComboBox) node);
             }
         }
-
-        // Assuming the direction ComboBox is the third one
         return comboBoxes.size() > 2 ? comboBoxes.get(2) : null;
     }
 
@@ -948,6 +899,9 @@ public class AnimationViewer extends Application {
         }
     }
 
+    /**
+     * Updates the sprite parts preview panel
+     */
     private void updatePartsPreviews() {
         spritePartsContainer.getChildren().clear();
 
@@ -960,9 +914,8 @@ public class AnimationViewer extends Application {
                 partBox.setAlignment(Pos.CENTER);
                 partBox.setStyle("-fx-border-color: lightgray; -fx-border-width: 1px; -fx-padding: 5px;");
                 partBox.setPrefWidth(120);
-                partBox.setPrefHeight(180); // Réduire la hauteur car moins de contrôles
+                partBox.setPrefHeight(180);
 
-                // Charger et appliquer la LUT
                 Image originalImage = new Image(imagePath, 80, 80, false, false);
                 Image finalImage = animation.getLUTManager().applyLUT(partName, originalImage);
 
@@ -972,7 +925,6 @@ public class AnimationViewer extends Application {
                 spriteView.setPreserveRatio(false);
                 spriteView.setSmooth(false);
 
-                // Labels
                 Label nameLabel = new Label(partName);
                 nameLabel.setWrapText(true);
                 nameLabel.setMaxWidth(110);
@@ -982,7 +934,6 @@ public class AnimationViewer extends Application {
                 frameLabel.setStyle("-fx-font-weight: bold;");
                 frameLabel.setAlignment(Pos.CENTER);
 
-                // Afficher le groupe si la partie en fait partie
                 String partGroup = groupManager.getPartGroup(partName);
                 if (partGroup != null) {
                     Label groupLabel = new Label("Group: " + partGroup);
@@ -991,8 +942,7 @@ public class AnimationViewer extends Application {
                     partBox.getChildren().add(groupLabel);
                 }
 
-                // Bouton d'édition
-                Button editButton = new Button(customEditorPath != null ? "Edit" : "Edit");
+                Button editButton = new Button("Edit");
                 editButton.setOnAction(e -> openSpriteInExternalEditor(imagePath));
 
                 partBox.getChildren().addAll(spriteView, nameLabel, frameLabel, editButton);
@@ -1002,7 +952,7 @@ public class AnimationViewer extends Application {
     }
 
     /**
-     * Met à jour l'image d'un seul sprite dans le preview sans recréer tout
+     * Updates a single sprite image in the preview without recreating everything
      */
     private void updateSinglePartPreview(String partName, int frameIndex, ImageView spriteView) {
         String imagePath = animation.getSpriteLoader().getSpritePath(partName, frameIndex);
@@ -1014,7 +964,7 @@ public class AnimationViewer extends Application {
     }
 
     /**
-     * Charge un fichier LUT pour une partie spécifique
+     * Loads a LUT file for a specific body part
      */
     private void loadLUTForPart(String partName) {
         javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
@@ -1027,12 +977,11 @@ public class AnimationViewer extends Application {
         if (selectedFile != null) {
             boolean success = animation.getLUTManager().loadLUT(partName, selectedFile.getAbsolutePath());
             if (success) {
-                // Forcer le rafraîchissement
                 animation.renderCurrentFrame();
                 updatePartsPreviews();
             } else {
-                showAlert("Erreur LUT",
-                        "Impossible de charger le fichier LUT pour " + partName,
+                showAlert("LUT Error",
+                        "Unable to load LUT file for " + partName,
                         Alert.AlertType.ERROR);
             }
         }
